@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>薬剤費 自己負担額計算</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1f2933; --muted: #6b7785;
+    --line: #d9dee5; --accent: #1f6feb; --accent-weak: #e7f0fe; --result: #0b5d3b; --result-bg: #e8f6ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    font-size: 16px; line-height: 1.6;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 8px; margin-bottom: 16px; }
+  .field { margin-bottom: 16px; }
+  .label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.95rem; }
+  .seg { display: flex; gap: 0; border: 1px solid var(--accent); border-radius: 8px; overflow: hidden; }
+  .seg input { display: none; }
+  .seg label {
+    flex: 1; text-align: center; padding: 9px 4px; cursor: pointer; color: var(--accent);
+    border-right: 1px solid var(--accent); user-select: none; font-weight: 600;
+  }
+  .seg label:last-of-type { border-right: none; }
+  .seg input:checked + label { background: var(--accent); color: #fff; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row .field { flex: 1 1 160px; }
+  .inp { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .inp:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  .inp input { flex: 1; min-width: 0; border: none; outline: none; padding: 10px 12px; font-size: 1.05rem; background: transparent; text-align: right; }
+  .inp span { padding: 0 12px 0 4px; color: var(--muted); white-space: nowrap; }
+  .hidden { display: none; }
+  .opt { display: flex; align-items: flex-start; gap: 8px; font-size: 0.9rem; margin-bottom: 14px; }
+  .opt input { margin-top: 5px; }
+  .result { background: var(--result-bg); border: 1px solid #b7e1c8; border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+  .result .big-label { font-size: 0.9rem; color: var(--result); font-weight: 600; }
+  .result .big { font-size: 2.2rem; font-weight: 700; color: var(--result); line-height: 1.2; }
+  .result .big small { font-size: 1rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 12px; }
+  td, th { padding: 6px 4px; border-bottom: 1px solid #cfe7d8; text-align: right; }
+  td:first-child, th:first-child { text-align: left; color: #3d4b45; font-weight: normal; }
+  .compare th { color: var(--muted); font-weight: 600; }
+  .compare tr.sel td { font-weight: 700; color: var(--result); }
+  .err { color: #b42318; font-size: 0.9rem; min-height: 1.2em; }
+  .note { font-size: 0.8rem; color: var(--muted); }
+  .note ul { padding-left: 1.2em; margin: 6px 0; }
+  button.reset { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+  @media print { body { background: #fff; } button.reset { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>薬剤費 自己負担額計算</h1>
+  <p class="sub">1か月分の薬剤費と患者自己負担額の目安を計算します（オフラインで動作）</p>
+
+  <div class="card">
+    <div class="field">
+      <span class="label">自己負担割合</span>
+      <div class="seg">
+        <input type="radio" name="ratio" id="r1" value="0.1"><label for="r1">1割</label>
+        <input type="radio" name="ratio" id="r2" value="0.2"><label for="r2">2割</label>
+        <input type="radio" name="ratio" id="r3" value="0.3" checked><label for="r3">3割</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="label">剤形</span>
+      <div class="seg">
+        <input type="radio" name="form" id="fOral" value="oral" checked><label for="fOral">内服</label>
+        <input type="radio" name="form" id="fInj" value="inj"><label for="fInj">注射</label>
+      </div>
+    </div>
+
+    <div id="oralBox">
+      <div class="row">
+        <div class="field">
+          <label class="label" for="tabs">1日あたりの錠数</label>
+          <div class="inp"><input id="tabs" type="number" inputmode="decimal" min="0" step="0.5" value=""><span>錠/日</span></div>
+        </div>
+        <div class="field">
+          <label class="label" for="tabPrice">1錠あたりの薬価</label>
+          <div class="inp"><input id="tabPrice" type="number" inputmode="decimal" min="0" step="0.01" value=""><span>円</span></div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="label" for="days">1か月の日数</label>
+        <div class="inp" style="max-width:200px"><input id="days" type="number" inputmode="numeric" min="1" step="1" value="30"><span>日</span></div>
+      </div>
+    </div>
+
+    <div id="injBox" class="hidden">
+      <div class="row">
+        <div class="field">
+          <label class="label" for="vials">1か月の使用本数</label>
+          <div class="inp"><input id="vials" type="number" inputmode="decimal" min="0" step="1" value=""><span>本/月</span></div>
+        </div>
+        <div class="field">
+          <label class="label" for="vialPrice">1本あたりの薬価</label>
+          <div class="inp"><input id="vialPrice" type="number" inputmode="decimal" min="0" step="0.01" value=""><span>円</span></div>
+        </div>
+      </div>
+    </div>
+
+    <label class="opt"><input type="checkbox" id="usePoints" checked>
+      <span>点数換算して計算する（薬価→点数を五捨五超入、15円以下は1点。内服は1日分、注射は1本ごとに換算）</span></label>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="result">
+    <div class="big-label">1か月の自己負担額（<span id="ratioLabel">3割</span>）</div>
+    <div class="big"><span id="outPay">—</span> <small>円</small></div>
+    <table>
+      <tr><td>1か月の薬剤費（10割）</td><td id="outTotal">—</td></tr>
+      <tr><td id="unitLabel">計算の内訳</td><td id="outDetail">—</td></tr>
+    </table>
+    <table class="compare">
+      <tr><th>負担割合</th><th>自己負担額／月</th><th>年額目安（×12）</th></tr>
+      <tr data-r="0.1"><td>1割</td><td id="c1">—</td><td id="y1">—</td></tr>
+      <tr data-r="0.2"><td>2割</td><td id="c2">—</td><td id="y2">—</td></tr>
+      <tr data-r="0.3"><td>3割</td><td id="c3">—</td><td id="y3">—</td></tr>
+    </table>
+  </div>
+
+  <button class="reset" id="resetBtn">入力をクリア</button>
+
+  <div class="note">
+    <ul>
+      <li>自己負担額は10円未満を四捨五入しています。</li>
+      <li>薬剤料のみの概算です。診察料・処方料・調剤技術料・注射手技料・在宅自己注射指導管理料などは含みません。</li>
+      <li>高額療養費制度・公費負担（難病医療費助成など）・月ごとの負担上限は反映していません。</li>
+      <li>複数薬剤を1剤としてまとめて処方する場合や、端数処理の単位が異なる場合は実際の請求額と差が出ることがあります。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var yen = function (n) { return Math.round(n).toLocaleString("ja-JP"); };
+  var yenExact = function (n) { return n.toLocaleString("ja-JP", { maximumFractionDigits: 2 }); };
+
+  // 薬価(円) → 点数：15円以下は1点、15円超は10円で割り小数点以下五捨五超入
+  function toPoints(price) {
+    if (price <= 0) return 0;
+    var c = Math.round(price * 100);           // 0.01円単位の整数
+    if (c <= 1500) return 1;
+    var p = Math.floor(c / 1000), r = c % 1000; // r: 小数部（0.001点単位）
+    return r > 500 ? p + 1 : p;
+  }
+  // 自己負担：10円未満四捨五入
+  function round10(v) { return Math.round(v / 10) * 10; }
+
+  function val(id) {
+    var s = $(id).value.trim();
+    if (s === "") return NaN;
+    return Number(s);
+  }
+  function getRatio() { return Number(document.querySelector('input[name="ratio"]:checked').value); }
+  function getForm() { return document.querySelector('input[name="form"]:checked').value; }
+
+  function clearOut() {
+    ["outPay", "outTotal", "outDetail", "c1", "c2", "c3", "y1", "y2", "y3"].forEach(function (k) { $(k).textContent = "—"; });
+  }
+
+  function calc() {
+    var form = getForm(), ratio = getRatio(), usePts = $("usePoints").checked;
+    $("oralBox").classList.toggle("hidden", form !== "oral");
+    $("injBox").classList.toggle("hidden", form !== "inj");
+    $("ratioLabel").textContent = Math.round(ratio * 10) + "割";
+    document.querySelectorAll(".compare tr[data-r]").forEach(function (tr) {
+      tr.classList.toggle("sel", Number(tr.getAttribute("data-r")) === ratio);
+    });
+    $("err").textContent = "";
+
+    var total, detail;
+    if (form === "oral") {
+      var t = val("tabs"), p = val("tabPrice"), d = val("days");
+      if ([t, p, d].some(isNaN)) { clearOut(); return; }
+      if (t < 0 || p < 0 || d <= 0) { $("err").textContent = "0以上の数値を入力してください（日数は1以上）。"; clearOut(); return; }
+      var daily = t * p;
+      if (usePts) {
+        var pt = toPoints(daily);
+        total = pt * d * 10;
+        detail = "1日 " + yenExact(daily) + "円 → " + pt + "点 × " + d + "日 = " + (pt * d).toLocaleString("ja-JP") + "点";
+      } else {
+        total = daily * d;
+        detail = yenExact(p) + "円 × " + t + "錠 × " + d + "日";
+      }
+    } else {
+      var n = val("vials"), vp = val("vialPrice");
+      if ([n, vp].some(isNaN)) { clearOut(); return; }
+      if (n < 0 || vp < 0) { $("err").textContent = "0以上の数値を入力してください。"; clearOut(); return; }
+      if (usePts) {
+        var vpt = toPoints(vp);
+        total = vpt * n * 10;
+        detail = "1本 " + yenExact(vp) + "円 → " + vpt.toLocaleString("ja-JP") + "点 × " + n + "本 = " + (vpt * n).toLocaleString("ja-JP") + "点";
+      } else {
+        total = vp * n;
+        detail = yenExact(vp) + "円 × " + n + "本";
+      }
+    }
+
+    $("outTotal").textContent = yen(total) + " 円";
+    $("outDetail").textContent = detail;
+    $("outPay").textContent = yen(round10(total * ratio));
+    [[0.1, "1"], [0.2, "2"], [0.3, "3"]].forEach(function (a) {
+      var m = round10(total * a[0]);
+      $("c" + a[1]).textContent = yen(m) + " 円";
+      $("y" + a[1]).textContent = yen(m * 12) + " 円";
+    });
+  }
+
+  document.querySelectorAll("input").forEach(function (el) {
+    el.addEventListener("input", calc);
+    el.addEventListener("change", calc);
+  });
+  $("resetBtn").addEventListener("click", function () {
+    ["tabs", "tabPrice", "vials", "vialPrice"].forEach(function (k) { $(k).value = ""; });
+    $("days").value = 30;
+    calc();
+  });
+  calc();
+})();
+</script>
+</body>
+</html>

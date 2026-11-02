@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>低Na血症アセスメント／補正トラッカー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#fbfcfd; --panel:#ffffff; --ink:#16202a; --ink-2:#53616e; --ink-3:#7d8a95;
+  --line:#dbe3e9; --line-strong:#c2ced7;
+  --key:#1f5f7a; --key-soft:#e7f1f5;
+  --warn:#9a6708; --warn-soft:#fdf3e0;
+  --stop:#a32b22; --stop-soft:#fceceb;
+  --ok:#1b6f4c; --ok-soft:#e8f4ee;
+  --radius:4px;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme: dark){
+    --paper:#11171d; --panel:#171f26; --ink:#e6ecf1; --ink-2:#a5b3bd; --ink-3:#7f8d97;
+    --line:#2a343d; --line-strong:#3a4650;
+    --key:#7cc0dc; --key-soft:#17313d;
+    --warn:#e0ad55; --warn-soft:#332711;
+    --stop:#ef8880; --stop-soft:#3a1b18;
+    --ok:#68c29a; --ok-soft:#14301f;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#11171d; --panel:#171f26; --ink:#e6ecf1; --ink-2:#a5b3bd; --ink-3:#7f8d97;
+  --line:#2a343d; --line-strong:#3a4650;
+  --key:#7cc0dc; --key-soft:#17313d;
+  --warn:#e0ad55; --warn-soft:#332711;
+  --stop:#ef8880; --stop-soft:#3a1b18;
+  --ok:#68c29a; --ok-soft:#14301f;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Noto Sans JP",-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif;
+  font-size:15px; line-height:1.75; -webkit-text-size-adjust:100%;
+}
+.num{font-family:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px; margin:0 auto; padding:24px 18px 80px}
+header.top{display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; justify-content:space-between; border-bottom:2px solid var(--ink); padding-bottom:10px; margin-bottom:6px}
+header.top h1{font-size:19px; font-weight:700; margin:0; letter-spacing:.02em}
+header.top p{margin:0; color:var(--ink-2); font-size:12.5px}
+.themebtn{background:none; border:1px solid var(--line-strong); color:var(--ink-2); border-radius:var(--radius); padding:3px 10px; font:inherit; font-size:12px; cursor:pointer}
+.themebtn:hover{border-color:var(--key); color:var(--key)}
+.grid{display:grid; grid-template-columns:minmax(0,340px) minmax(0,1fr); gap:26px; margin-top:22px}
+@media (max-width:860px){ .grid{grid-template-columns:1fr; gap:18px} }
+.panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius)}
+form.inputs{position:sticky; top:12px; align-self:start; max-height:calc(100vh - 40px); overflow-y:auto; padding:16px 16px 20px}
+@media (max-width:860px){ form.inputs{position:static; max-height:none} }
+fieldset{border:none; border-top:1px solid var(--line); margin:0 0 4px; padding:14px 0 6px}
+fieldset:first-of-type{border-top:none; padding-top:0}
+legend{font-size:12.5px; font-weight:700; color:var(--key); padding:0}
+.row{display:grid; grid-template-columns:1fr 92px; gap:8px; align-items:center; margin:7px 0}
+.row label{font-size:13px; color:var(--ink-2)}
+.row .unit{font-size:11px; color:var(--ink-3)}
+input[type=number],input[type=datetime-local],select{
+  width:100%; padding:6px 8px; border:1px solid var(--line-strong); border-radius:var(--radius);
+  background:var(--paper); color:var(--ink); font:inherit; font-size:14px;
+  font-family:"Roboto Mono",monospace; font-variant-numeric:tabular-nums;
+}
+select{font-family:"Noto Sans JP",sans-serif}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--key); outline-offset:2px}
+.stack{display:flex; flex-direction:column; gap:6px; margin:8px 0}
+.stack label{font-size:13px; color:var(--ink-2)}
+.checks{display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:6px}
+.checks label{font-size:13px; color:var(--ink-2); display:flex; gap:5px; align-items:center}
+input[type=checkbox]{accent-color:var(--key); width:15px; height:15px}
+.results{display:flex; flex-direction:column; gap:18px; min-width:0}
+section.card{padding:16px 18px 18px}
+section.card > h2{
+  font-size:13px; font-weight:700; margin:0 0 12px; color:var(--ink-2);
+  border-bottom:1px solid var(--line); padding-bottom:7px; letter-spacing:.03em;
+}
+.headline{display:flex; flex-wrap:wrap; gap:22px; align-items:flex-end}
+.big{font-size:40px; line-height:1; font-weight:700; letter-spacing:-.02em}
+.big small{font-size:14px; font-weight:400; color:var(--ink-2); margin-left:4px}
+.headline .lab{font-size:12px; color:var(--ink-3); display:block; margin-bottom:6px}
+.mid{font-size:24px; line-height:1.15; font-weight:500}
+.tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:14px}
+.tag{font-size:12px; padding:2px 9px; border-radius:99px; border:1px solid var(--line-strong); color:var(--ink-2)}
+.tag.key{background:var(--key-soft); border-color:transparent; color:var(--key); font-weight:500}
+.tag.stop{background:var(--stop-soft); border-color:transparent; color:var(--stop); font-weight:500}
+.tag.warn{background:var(--warn-soft); border-color:transparent; color:var(--warn); font-weight:500}
+.note{border-left:3px solid var(--line-strong); padding:8px 0 8px 12px; margin:12px 0 0; font-size:13.5px; color:var(--ink-2)}
+.note.warn{border-color:var(--warn); background:var(--warn-soft); color:var(--ink); padding-right:10px}
+.note.stop{border-color:var(--stop); background:var(--stop-soft); color:var(--ink); padding-right:10px}
+.note.ok{border-color:var(--ok); background:var(--ok-soft); color:var(--ink); padding-right:10px}
+.note b{font-weight:700}
+ol.steps{margin:0; padding-left:0; list-style:none; counter-reset:s}
+ol.steps li{counter-increment:s; position:relative; padding:9px 0 9px 34px; border-top:1px solid var(--line); font-size:14px}
+ol.steps li:first-child{border-top:none}
+ol.steps li::before{
+  content:counter(s); position:absolute; left:0; top:11px; width:22px; height:22px; border-radius:50%;
+  background:var(--key-soft); color:var(--key); font-family:"Roboto Mono",monospace; font-size:12px; font-weight:700;
+  display:grid; place-items:center;
+}
+ul.plain{margin:6px 0 0; padding-left:18px; font-size:13.5px; color:var(--ink-2)}
+ul.plain li{margin:2px 0}
+table{width:100%; border-collapse:collapse; font-size:13.5px}
+th,td{text-align:left; padding:7px 8px; border-bottom:1px solid var(--line)}
+th{font-size:12px; color:var(--ink-3); font-weight:500}
+td.n{font-family:"Roboto Mono",monospace; font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+.flag-ok{color:var(--ok); font-weight:500}
+.flag-warn{color:var(--warn); font-weight:700}
+.flag-stop{color:var(--stop); font-weight:700}
+.trk-add{display:grid; grid-template-columns:minmax(150px,1.4fr) minmax(80px,.8fr) minmax(80px,.8fr) auto; gap:8px; align-items:end; margin-bottom:12px}
+@media (max-width:640px){ .trk-add{grid-template-columns:1fr 1fr; } .trk-add button{grid-column:span 2} }
+.trk-add label{font-size:11.5px; color:var(--ink-3); display:block; margin-bottom:3px}
+button.act{background:var(--key); color:#fff; border:none; border-radius:var(--radius); padding:8px 14px; font:inherit; font-size:13.5px; font-weight:500; cursor:pointer}
+button.act:hover{filter:brightness(1.08)}
+button.ghost{background:none; border:1px solid var(--line-strong); color:var(--ink-2); border-radius:var(--radius); padding:4px 10px; font:inherit; font-size:12px; cursor:pointer}
+button.ghost:hover{border-color:var(--stop); color:var(--stop)}
+.empty{color:var(--ink-3); font-size:13.5px; padding:14px 0}
+footer{margin-top:34px; padding-top:14px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-3)}
+footer p{margin:4px 0}
+.calc-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px 18px}
+.calc-grid div span{display:block; font-size:11.5px; color:var(--ink-3)}
+.calc-grid div strong{font-family:"Roboto Mono",monospace; font-size:19px; font-weight:500}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <h1>低Na血症 アセスメント／補正トラッカー</h1>
+    <p>欧州合同ガイドライン（ESE・ESICM・ERBP 2014）の分類・アルゴリズム・補正上限に準拠</p>
+  </div>
+  <button class="themebtn" id="themebtn" type="button">表示切替</button>
+</header>
+
+<div class="grid">
+
+  <form class="inputs panel" id="f" autocomplete="off">
+    <fieldset>
+      <legend>血液</legend>
+      <div class="row"><label for="na">血清Na <span class="unit">mmol/L</span></label><input type="number" id="na" step="0.1" value="118"></div>
+      <div class="row"><label for="k">血清K <span class="unit">mmol/L</span></label><input type="number" id="k" step="0.1" placeholder="—"></div>
+      <div class="row"><label for="glu">血糖 <span class="unit">mg/dL</span></label><input type="number" id="glu" step="1" value="100"></div>
+      <div class="row"><label for="sosm">血清浸透圧（実測）<span class="unit">mOsm/kg</span></label><input type="number" id="sosm" step="1" placeholder="—"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>尿（血液と同時採取）</legend>
+      <div class="row"><label for="uosm">尿浸透圧 <span class="unit">mOsm/kg</span></label><input type="number" id="uosm" step="1" value="520"></div>
+      <div class="row"><label for="una">尿Na <span class="unit">mmol/L</span></label><input type="number" id="una" step="1" value="60"></div>
+      <div class="row"><label for="uk">尿K <span class="unit">mmol/L</span></label><input type="number" id="uk" step="1" placeholder="—"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>臨床</legend>
+      <div class="stack">
+        <label for="sym">症状</label>
+        <select id="sym">
+          <option value="none">重症・中等症の症状なし</option>
+          <option value="mod">中等症（嘔気・混乱・頭痛）</option>
+          <option value="sev">重症（嘔吐・心肺障害・傾眠・痙攣・昏睡 GCS≦8）</option>
+        </select>
+      </div>
+      <div class="stack">
+        <label for="dur">経過</label>
+        <select id="dur">
+          <option value="chronic">48時間以上／不明（＝慢性として扱う）</option>
+          <option value="acute">48時間未満と確認できる（急性）</option>
+        </select>
+      </div>
+      <div class="stack">
+        <label for="ecf">細胞外液量の評価</label>
+        <select id="ecf">
+          <option value="unknown">評価していない／判断困難</option>
+          <option value="low">減少</option>
+          <option value="normal">正常</option>
+          <option value="high">増加（浮腫・腹水）</option>
+        </select>
+      </div>
+      <div class="row"><label for="drop">急性低下幅（既知の場合）<span class="unit">mmol/L</span></label><input type="number" id="drop" step="1" placeholder="—"></div>
+      <div class="checks">
+        <label><input type="checkbox" id="diur"> 利尿薬使用中</label>
+        <label><input type="checkbox" id="ckd"> 腎機能障害</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>体格（計算用）</legend>
+      <div class="row"><label for="wt">体重 <span class="unit">kg</span></label><input type="number" id="wt" step="0.5" value="55"></div>
+      <div class="stack">
+        <label for="tbwf">体液量係数</label>
+        <select id="tbwf">
+          <option value="0.6">男性・65歳未満（0.6）</option>
+          <option value="0.5" selected>女性・65歳未満／男性・65歳以上（0.5）</option>
+          <option value="0.45">女性・65歳以上（0.45）</option>
+        </select>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>ODSリスク因子</legend>
+      <div class="checks">
+        <label><input type="checkbox" class="ods" value="アルコール多飲"> アルコール多飲</label>
+        <label><input type="checkbox" class="ods" value="肝疾患"> 肝疾患</label>
+        <label><input type="checkbox" class="ods" value="低栄養"> 低栄養</label>
+        <label><input type="checkbox" class="ods" value="低K血症"> 低K血症</label>
+        <label><input type="checkbox" class="ods" value="サイアザイド／抗うつ薬"> サイアザイド／抗うつ薬</label>
+      </div>
+    </fieldset>
+  </form>
+
+  <div class="results">
+
+    <section class="card panel" id="summary"></section>
+    <section class="card panel" id="tonicity"></section>
+    <section class="card panel" id="ddx"></section>
+    <section class="card panel" id="tx"></section>
+    <section class="card panel" id="calc"></section>
+
+    <section class="card panel">
+      <h2>補正トラッカー</h2>
+      <div class="trk-add">
+        <div><label for="t-time">採血時刻</label><input type="datetime-local" id="t-time"></div>
+        <div><label for="t-na">Na</label><input type="number" id="t-na" step="0.1" placeholder="mmol/L"></div>
+        <div><label for="t-uo">尿量</label><input type="number" id="t-uo" step="10" placeholder="mL/h"></div>
+        <button class="act" type="button" id="t-add">記録を追加</button>
+      </div>
+      <div id="t-out"></div>
+    </section>
+
+    <footer>
+      <p>判定は Spasovski G, et al. Nephrol Dial Transplant 2014;29(Suppl 2):ii1–ii39 の分類・Fig.6・Fig.7・第7章に沿った決定論的ルールです。補正上限は欧州版（初回24時間 10 mmol/L、以降24時間ごと 8 mmol/L、Na 130 mmol/L まで）を既定値にしています。</p>
+      <p>入力値はこのページを開いている間だけメモリ上に保持され、保存も送信もされません。患者識別情報は入力しないでください。最終判断は主治医が行ってください。</p>
+    </footer>
+  </div>
+</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const val = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : null; };
+const fmt = (v,d=1) => v===null||!isFinite(v) ? "—" : v.toFixed(d);
+
+/* ---------- theme ---------- */
+$("themebtn").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark"
+    : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+});
+
+/* ---------- core computation ---------- */
+function state(){
+  const s = {
+    na: val("na"), k: val("k"), glu: val("glu"), sosm: val("sosm"),
+    uosm: val("uosm"), una: val("una"), uk: val("uk"),
+    sym: $("sym").value, dur: $("dur").value, ecf: $("ecf").value,
+    drop: val("drop"), diur: $("diur").checked, ckd: $("ckd").checked,
+    wt: val("wt"), tbwf: parseFloat($("tbwf").value),
+    ods: [...document.querySelectorAll(".ods:checked")].map(c => c.value)
+  };
+  s.naCorr = (s.na !== null && s.glu !== null) ? s.na + 2.4 * (s.glu - 100) / 100 : s.na;
+  s.effOsm = (s.na !== null && s.glu !== null) ? 2 * (s.na + (s.k ?? 0)) + s.glu / 18 : null;
+  s.tbw = (s.wt !== null) ? s.wt * s.tbwf : null;
+  s.furst = (s.una !== null && s.uk !== null && s.na) ? (s.una + s.uk) / s.na : null;
+  return s;
+}
+
+function severity(na){
+  if (na === null) return null;
+  if (na >= 135) return { label: "低Na血症なし", cls: "" };
+  if (na >= 130) return { label: "軽症 130–134", cls: "" };
+  if (na >= 125) return { label: "中等症 125–129", cls: "warn" };
+  return { label: "高度 <125", cls: "stop" };
+}
+
+function renderSummary(s){
+  const sev = severity(s.naCorr);
+  const symTxt = { none: "重症・中等症の症状なし", mod: "中等症の症状あり", sev: "重症の症状あり" }[s.sym];
+  const durTxt = s.dur === "acute" ? "急性（<48h）" : "慢性／不明（<48h の根拠なし）";
+  const cap24 = s.na !== null ? Math.min(s.na + 10, 130) : null;
+  const cap48 = s.na !== null ? Math.min(s.na + 18, 130) : null;
+
+  let mildWarn = "";
+  if (s.naCorr !== null && s.naCorr >= 130 && s.sym !== "none") {
+    mildWarn = `<div class="note warn">軽症の生化学的低Na血症に重症〜中等症の症状がある組み合わせです。ガイドラインは、この場合に低Na血症が症状の原因だと認めるのは例外的な場合に限るとしています。原則として緊急補正（7.1〜7.3）の適応ではなく、他の原因検索を優先してください。</div>`;
+  }
+
+  $("summary").innerHTML = `
+    <h2>分類</h2>
+    <div class="headline">
+      <div>
+        <span class="lab">補正後血清Na</span>
+        <div class="big num">${fmt(s.naCorr)}<small>mmol/L</small></div>
+      </div>
+      <div>
+        <span class="lab">24時間の上限</span>
+        <div class="mid num">${fmt(cap24)} <small style="font-size:12px;color:var(--ink-2)">（+10）</small></div>
+      </div>
+      <div>
+        <span class="lab">48時間の上限</span>
+        <div class="mid num">${fmt(cap48)} <small style="font-size:12px;color:var(--ink-2)">（+18）</small></div>
+      </div>
+    </div>
+    <div class="tags">
+      <span class="tag ${sev ? sev.cls : ""}">${sev ? sev.label : "—"}</span>
+      <span class="tag ${s.sym === "sev" ? "stop" : s.sym === "mod" ? "warn" : ""}">${symTxt}</span>
+      <span class="tag">${durTxt}</span>
+      ${s.ods.length ? `<span class="tag warn">ODSリスク: ${s.ods.join("・")}</span>` : ""}
+    </div>
+    ${mildWarn}
+    ${s.ods.length ? `<div class="note">ODSリスク因子があります。上限（初回24時間 10 mmol/L）は欧州版の値のままですが、リスク因子があるときは上限より低い上昇幅を目標に置き、Na測定間隔を短くしてください。</div>` : ""}
+  `;
+}
+
+function renderTonicity(s){
+  const rows = [];
+  let verdict, cls;
+  if (s.sosm !== null && s.sosm < 275) {
+    verdict = "実測浸透圧 <275 mOsm/kg：低張性低Na血症として扱えます。"; cls = "ok";
+  } else if (s.sosm !== null && s.sosm >= 275) {
+    verdict = "実測浸透圧 ≧275 mOsm/kg：低張性ではない可能性があります。高血糖・マンニトール・グリシン（TURP）・偽性低Na血症を検討してください。"; cls = "warn";
+  } else {
+    verdict = "実測浸透圧が未入力です。実測できない場合は、表10の非低張性の原因（高血糖、マンニトール、グリシン、造影剤、尿素、アルコール、高TG・高蛋白・IVIG・M蛋白による偽性）がないことを臨床的に確認すれば、低張性として扱えます。"; cls = "";
+  }
+  if (s.glu !== null && s.glu > 200) {
+    rows.push(`<li>血糖 ${fmt(s.glu,0)} mg/dL：高血糖の補正を行っています（100 mg/dL 超過 100 ごとに +2.4 mmol/L）。実測Na ${fmt(s.na)} → 補正後 ${fmt(s.naCorr)} mmol/L。</li>`);
+  }
+  rows.push(`<li>有効浸透圧（2×(Na+K)+血糖/18）: <span class="num">${fmt(s.effOsm,0)}</span> mOsm/kg${s.k === null ? "（K未入力のため K=0 で計算）" : ""}</li>`);
+  rows.push(`<li>偽性低Na血症を疑う場面では、血液ガス分析装置による直接電位差測定（希釈しない検体）で真のNaを確認します。間接法と直接法を混用しないでください。</li>`);
+
+  $("tonicity").innerHTML = `
+    <h2>step 1 — 低張性の確認</h2>
+    <div class="note ${cls}">${verdict}</div>
+    <ul class="plain">${rows.join("")}</ul>
+  `;
+}
+
+function renderDdx(s){
+  let path = "", list = [], extra = "";
+  if (s.uosm === null || s.una === null) {
+    $("ddx").innerHTML = `<h2>step 2 — 原因の鑑別</h2><div class="note">尿浸透圧と尿Naを入力すると、Fig.6 の鑑別経路を表示します。血液と尿は同時に採取してください。</div>`;
+    return;
+  }
+  if (s.uosm <= 100) {
+    path = "尿浸透圧 ≦100 mOsm/kg → 最大希釈尿。相対的な水分過剰摂取が原因です。";
+    list = ["原発性多飲症", "低溶質摂取（tea and toast、拒食）", "ビール多飲症（beer potomania）"];
+  } else {
+    if (s.una <= 30) {
+      path = "尿浸透圧 >100、尿Na ≦30 mmol/L → 有効動脈血流量の低下。利尿薬使用中でもこの解釈は成り立ちます。";
+      list = s.ecf === "high"
+        ? ["心不全", "肝硬変", "ネフローゼ症候群"]
+        : s.ecf === "low"
+          ? ["下痢・嘔吐", "サードスペース（腸閉塞、膵炎、敗血症、筋外傷）", "遠隔の利尿薬使用"]
+          : ["細胞外液量増加なら：心不全／肝硬変／ネフローゼ症候群", "細胞外液量減少なら：下痢・嘔吐／サードスペース／遠隔の利尿薬"];
+    } else {
+      if (s.diur || s.ckd) {
+        path = "尿浸透圧 >100、尿Na >30 mmol/L、利尿薬または腎疾患あり → まず利尿薬・腎疾患の寄与を考えます。";
+        list = ["利尿薬（サイアザイドが最多。K保持性利尿薬も原因になります）", "腎疾患（塩類喪失性腎症）", "利尿薬中止後も遷延する場合は他の原因を再検討"];
+        extra = "利尿薬使用下では尿Na >30 の解釈に注意します。尿酸分画排泄率 <12% は有効循環血液量低下とSIADの鑑別に役立つ可能性がありますが、ルーチンの算出は推奨されていません。";
+      } else {
+        path = "尿浸透圧 >100、尿Na >30 mmol/L、利尿薬・腎疾患なし → 細胞外液量で分けます。";
+        list = s.ecf === "low"
+          ? ["嘔吐", "原発性副腎不全", "腎性塩類喪失", "脳性塩類喪失（CSW）", "隠れた利尿薬使用"]
+          : s.ecf === "normal"
+            ? ["SIAD（除外診断）", "続発性副腎不全", "（甲状腺機能低下症：粘液水腫性昏睡以外ではまれ）", "隠れた利尿薬使用"]
+            : s.ecf === "high"
+              ? ["細胞外液量増加でこの所見なら、利尿薬の関与や腎疾患をもう一度確認してください"]
+              : ["細胞外液量減少なら：嘔吐／原発性副腎不全／腎性塩類喪失／CSW", "細胞外液量正常なら：SIAD／続発性副腎不全／隠れた利尿薬"];
+      }
+    }
+  }
+
+  const siadHint = (s.uosm > 100 && s.una > 30 && !s.diur && (s.ecf === "normal" || s.ecf === "unknown"))
+    ? `<div class="note">SIADは除外診断です。表6の必須項目（有効血清浸透圧 <275、尿浸透圧 >100、臨床的に正常な体液量、尿Na >30、副腎・甲状腺・下垂体・腎機能障害がない、最近の利尿薬使用がない）を確認し、副腎不全の除外を明示的に行ってください。バソプレシン測定と水負荷試験は推奨されていません。</div>`
+    : "";
+
+  const furstHint = s.furst !== null
+    ? `<div class="note ${s.furst > 1 ? "warn" : ""}">尿/血清電解質比 (尿Na+尿K)/血清Na = <span class="num">${fmt(s.furst,2)}</span>${s.furst > 1 ? "：>1 です。水制限だけでは反応しにくい群にあたります（尿浸透圧 >500 も同じ意味をもちます）。" : "：≦1 です。水制限への反応が期待できます。"}</div>`
+    : "";
+
+  $("ddx").innerHTML = `
+    <h2>step 2 — 原因の鑑別（Fig.6）</h2>
+    <div class="note ok">${path}</div>
+    <ul class="plain">${list.map(x => `<li>${x}</li>`).join("")}</ul>
+    ${extra ? `<div class="note">${extra}</div>` : ""}
+    ${siadHint}
+    ${furstHint}
+  `;
+}
+
+function renderTx(s){
+  const na = s.na, cap24 = na !== null ? Math.min(na + 10, 130) : null;
+  let title = "", steps = [], notes = [];
+
+  if (s.sym === "sev") {
+    title = "重症の症状あり（7.1）— 急性・慢性を問わず即時治療";
+    steps = [
+      "3%食塩水 150 mL を20分かけて静注します（体格が標準から外れる場合は 2 mL/kg）。",
+      "20分後にNaを再検し、必要なら同じ 150 mL を再投与します。",
+      "Naが 5 mmol/L 上昇するまで、または症状が改善するまで、最大2回繰り返します。",
+      "生化学・臨床の綿密なモニタリングができる環境で管理します。",
+      "症状が改善したら3%食塩水を中止し、0.9%食塩水を最小量で維持したまま原因治療を開始します。",
+      "症状が改善しない場合は 1 mmol/L/時 の上昇を目標に3%食塩水を継続し、同時に低Na血症以外の原因を検索します。合計10 mmol/L上昇、Na 130 mmol/L 到達、症状改善のいずれか早い時点で中止します。"
+    ];
+    notes.push({ cls: "stop", html: `初回24時間の合計上昇は <b>10 mmol/L</b> まで（最初の5 mmol/Lを含む）、以降は24時間ごと <b>8 mmol/L</b> までです。目標Na上限 <span class="num">${fmt(cap24)}</span> mmol/L。` });
+    notes.push({ cls: "", html: "Na再検は 6時間後・12時間後、その後は安定するまで毎日。3%食塩水を継続する間は4時間ごとに測定します。" });
+    notes.push({ cls: "", html: "低K血症があれば、その補正自体が血清Naを上げます。補正量の計算に入れてください。" });
+  } else if (s.sym === "mod") {
+    title = "中等症の症状あり（7.2）";
+    steps = [
+      "直ちに診断評価を始めます。",
+      "低Na血症を起こしうる薬剤・要因を可能な限り中止します。",
+      "原因に応じた治療を行います。",
+      "3%食塩水 150 mL を20分かけて1回だけ静注します。",
+      "24時間で 5 mmol/L の上昇を目標にします。",
+      "Naは 1時間後・6時間後・12時間後に測定します。"
+    ];
+    notes.push({ cls: "warn", html: `上限は初回24時間 <b>10 mmol/L</b>、以降24時間ごと <b>8 mmol/L</b>（Na 130 mmol/L まで）。目標Na上限 <span class="num">${fmt(cap24)}</span> mmol/L。` });
+    notes.push({ cls: "", html: "Naが上昇しても症状が改善しない場合は、他の原因を検索します。原疾患を治療してもNaがさらに低下する場合は、重症例に準じた管理を検討します。" });
+  } else if (s.dur === "acute") {
+    title = "急性・症状なし（7.3）";
+    steps = [
+      "前回と同じ測定法で測定されているか、検体の取り違えがないかを確認します。",
+      "輸液・薬剤など、低Na血症の誘因を可能な限り中止します。",
+      "直ちに診断評価を始めます。",
+      "原因に応じた治療を行います。",
+      (s.drop !== null && s.drop > 10)
+        ? `急性の低下幅が ${fmt(s.drop,0)} mmol/L で 10 を超えています。3%食塩水 150 mL を20分かけて1回静注します。`
+        : "急性の低下幅が 10 mmol/L を超える場合は、3%食塩水 150 mL を20分かけて1回静注します。",
+      "4時間後に、前回と同じ測定法でNaを再検します。"
+    ];
+    notes.push({ cls: "", html: "急性では脳がまだ低張環境に適応していないため、ガイドラインはこの区分に補正の目標値も上限値も設定していません。ただし「48時間未満」と確実に言える症例は限られます。判断に迷う場合は慢性として扱ってください。" });
+  } else {
+    const isMild = s.naCorr !== null && s.naCorr >= 130;
+    title = "慢性・症状なし（7.4）";
+    steps = [
+      "不要な輸液・薬剤・誘因を中止します。",
+      "原因に応じた治療を行います。",
+      isMild
+        ? "軽症（130–134）では、血清Naを上げること自体を目的とした治療は行いません。"
+        : "中等症・高度では、初回24時間 10 mmol/L 超、以降24時間ごと 8 mmol/L 超の上昇を避けます。",
+      isMild ? "経過観察と原因の是正を優先します。" : "安定するまで6時間ごとにNaを測定します。",
+      "治療しても改善しない（unresolved）場合は、診断アルゴリズムを最初からやり直し、専門家に相談します。"
+    ];
+    if (s.ecf === "high") {
+      notes.push({ cls: "", html: "<b>細胞外液量増加（7.4.2）</b>：軽症・中等症では血清Naを上げること自体を目的とした治療は行いません。溢水を防ぐ目的での水分制限は行います。バソプレシン受容体拮抗薬とデメクロサイクリンは推奨されません（1C／1D）。" });
+    } else if (s.ecf === "low") {
+      notes.push({ cls: "warn", html: "<b>循環血液量減少（7.4.4）</b>：0.9%食塩水または平衡晶質液を 0.5–1.0 mL/kg/時 で投与し、細胞外液量を回復させます（1B）。容量が回復するとバソプレシンが急に抑制され、水利尿によってNaが予想以上に急上昇します。尿量が 100 mL/時 を超えたら、安定するまで2時間ごとにNaを測定してください。血行動態が不安定なら、蘇生の必要性が急速補正の危険に優先します。" });
+    } else if (s.ecf === "normal") {
+      notes.push({ cls: "", html: "<b>SIAD（7.4.3）</b>：中等症・高度では水分制限が第一選択（2D）。第二選択は同等の扱いで、尿素 0.25–0.50 g/kg/日 の溶質負荷、または少量ループ利尿薬と経口食塩の併用です（2D）。リチウムとデメクロサイクリンは推奨されません（1D）。バソプレシン受容体拮抗薬は、中等症では推奨せず、高度では推奨しないとされています（1C）。" });
+      notes.push({ cls: "", html: "尿素の処方例：尿素 10 g + 炭酸水素Na 2 g + クエン酸 1.5 g + ショ糖 200 mg を 50–100 mL の水に溶解。苦味が緩和されます。" });
+    } else {
+      notes.push({ cls: "", html: "細胞外液量を入力すると、7.4.2（増加）・7.4.3（SIAD）・7.4.4（減少）のどれを適用するか表示します。" });
+    }
+    if (!isMild) {
+      notes.push({ cls: "warn", html: `上限は初回24時間 <b>10 mmol/L</b>、以降24時間ごと <b>8 mmol/L</b>。目標Na上限 <span class="num">${fmt(cap24)}</span> mmol/L。` });
+    }
+  }
+
+  const rescue = `
+    <div class="note stop">
+      <b>過補正したとき（7.5）</b>：初回24時間に10 mmol/L超、または以降の24時間に8 mmol/L超の上昇が起きた場合は、直ちに介入します。
+      ①進行中の能動的治療を中止 → ②専門家に相談のうえ、電解質を含まない輸液（5%ブドウ糖など）10 mL/kg${s.wt ? `＝<span class="num">${fmt(s.wt * 10, 0)}</span> mL` : ""} を1時間かけて投与（尿量・水分出納を厳密に監視）→ ③専門家に相談のうえ、デスモプレシン 2 µg 静注を検討（8時間より短い間隔では反復しない）。
+    </div>`;
+
+  $("tx").innerHTML = `
+    <h2>step 3 — 治療（Fig.7）</h2>
+    <div class="note key" style="border-left-color:var(--key);background:var(--key-soft)"><b>${title}</b></div>
+    <ol class="steps">${steps.map(x => `<li>${x}</li>`).join("")}</ol>
+    ${notes.map(n => `<div class="note ${n.cls}">${n.html}</div>`).join("")}
+    ${rescue}
+  `;
+}
+
+function renderCalc(s){
+  const infusates = [
+    { name: "3%食塩水", na: 513 },
+    { name: "0.9%食塩水", na: 154 },
+    { name: "5%ブドウ糖", na: 0 }
+  ];
+  const rows = infusates.map(i => {
+    const per1L = (s.tbw !== null && s.na !== null) ? (i.na - s.na) / (s.tbw + 1) : null;
+    const per150 = per1L !== null ? per1L * 0.15 : null;
+    return `<tr><td>${i.name}</td><td class="n">${i.na}</td><td class="n">${fmt(per1L,1)}</td><td class="n">${fmt(per150,2)}</td></tr>`;
+  }).join("");
+
+  $("calc").innerHTML = `
+    <h2>計算</h2>
+    <div class="calc-grid">
+      <div><span>補正後Na（高血糖補正）</span><strong>${fmt(s.naCorr)}</strong></div>
+      <div><span>有効浸透圧</span><strong>${fmt(s.effOsm,0)}</strong></div>
+      <div><span>推定体液量 TBW</span><strong>${fmt(s.tbw,1)} L</strong></div>
+      <div><span>尿/血清電解質比</span><strong>${fmt(s.furst,2)}</strong></div>
+    </div>
+    <div class="scroll" style="margin-top:14px">
+      <table>
+        <thead><tr><th>輸液</th><th>輸液Na</th><th>1 L あたりΔNa</th><th>150 mL あたりΔNa</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="note">Adrogué–Madias式（ΔNa =（輸液Na＋輸液K−血清Na）/(TBW＋1)）による予測です。実際の上昇はこの予測を上回ることが多く、報告では予測の最大5倍に達した例もあります。予測値ではなく実測値で管理してください。</div>
+  `;
+}
+
+function renderAll(){
+  const s = state();
+  renderSummary(s);
+  renderTonicity(s);
+  renderDdx(s);
+  renderTx(s);
+  renderCalc(s);
+  renderTracker();
+}
+
+$("f").addEventListener("input", renderAll);
+$("f").addEventListener("change", renderAll);
+
+/* ---------- tracker ---------- */
+let points = [];
+
+function localNow(){
+  const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+  return d.toISOString().slice(0,16);
+}
+$("t-time").value = localNow();
+
+$("t-add").addEventListener("click", () => {
+  const t = $("t-time").value, na = parseFloat($("t-na").value), uo = parseFloat($("t-uo").value);
+  if (!t || !isFinite(na)) { alert("採血時刻とNaを入力してください。"); return; }
+  points.push({ t: new Date(t).getTime(), na, uo: isFinite(uo) ? uo : null });
+  points.sort((a,b) => a.t - b.t);
+  $("t-na").value = ""; $("t-uo").value = "";
+  $("t-time").value = localNow();
+  renderTracker();
+});
+
+function renderTracker(){
+  const out = $("t-out");
+  if (!points.length) {
+    out.innerHTML = `<div class="empty">治療開始時のNaから記録を追加してください。各時点について、直前24時間以内の最低値からの上昇幅を計算し、欧州版の上限（初回24時間 10 mmol/L、以降 8 mmol/L）に対する残り幅を表示します。</div>`;
+    return;
+  }
+  const start = points[0];
+  const rows = points.map((p, idx) => {
+    const withinDay = (p.t - start.t) <= 24 * 3600 * 1000;
+    const limit = withinDay ? 10 : 8;
+    let base = p.na;
+    for (const q of points) {
+      if (q.t <= p.t && (p.t - q.t) <= 24 * 3600 * 1000) base = Math.min(base, q.na);
+    }
+    const rise = p.na - base;
+    const total = p.na - start.na;
+    const remain = limit - rise;
+    const hrs = (p.t - start.t) / 3600000;
+    let cls = "flag-ok", note = "範囲内";
+    if (idx === 0) { cls = ""; note = "基準点"; }
+    else if (rise > limit) { cls = "flag-stop"; note = "上限超過"; }
+    else if (remain <= 2) { cls = "flag-warn"; note = "上限に接近"; }
+    const uoFlag = p.uo !== null && p.uo > 100 ? ` <span class="flag-warn">尿量 ${p.uo} mL/h</span>` : (p.uo !== null ? ` ${p.uo} mL/h` : "");
+    return {
+      idx, cls, note, rise, remain, total, limit,
+      html: `<tr>
+        <td class="n">${new Date(p.t).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</td>
+        <td class="n">${fmt(hrs,1)}</td>
+        <td class="n">${fmt(p.na)}</td>
+        <td class="n">${idx === 0 ? "—" : "+" + fmt(rise)}</td>
+        <td class="n">${idx === 0 ? "—" : fmt(remain)}</td>
+        <td class="n">${idx === 0 ? "—" : "+" + fmt(total)}</td>
+        <td class="${cls}">${note}${uoFlag}</td>
+        <td><button class="ghost" data-del="${idx}" type="button">削除</button></td>
+      </tr>`
+    };
+  });
+
+  const worst = rows.slice(1).reduce((a,b) => !a || b.rise - b.limit > a.rise - a.limit ? b : a, null);
+  let banner = "";
+  if (worst) {
+    if (worst.rise > worst.limit) {
+      banner = `<div class="note stop"><b>上限を超えています</b>（24時間以内の上昇 +${fmt(worst.rise)} mmol/L、上限 ${worst.limit}）。能動的治療を中止し、5%ブドウ糖 10 mL/kg を1時間かけて投与、デスモプレシン 2 µg の併用を専門家と相談してください。</div>`;
+    } else if (worst.remain <= 2) {
+      banner = `<div class="note warn"><b>上限に接近しています</b>（24時間以内の上昇 +${fmt(worst.rise)} mmol/L、残り ${fmt(worst.remain)} mmol/L）。能動的治療の減量・中止を検討し、測定間隔を短くしてください。</div>`;
+    } else {
+      banner = `<div class="note ok">24時間以内の最大上昇は +${fmt(worst.rise)} mmol/L、上限まで ${fmt(worst.remain)} mmol/L です。</div>`;
+    }
+  }
+  const uoWarn = points.some(p => p.uo !== null && p.uo > 100)
+    ? `<div class="note warn">尿量が 100 mL/時 を超えています。水利尿が始まると血清Naは予想以上に急上昇します。安定するまで2時間ごとにNaを測定してください。</div>` : "";
+
+  out.innerHTML = `${banner}${uoWarn}
+    <div class="scroll"><table>
+      <thead><tr><th>時刻</th><th>経過h</th><th>Na</th><th>24h上昇</th><th>残り</th><th>開始から</th><th>判定</th><th></th></tr></thead>
+      <tbody>${rows.map(r => r.html).join("")}</tbody>
+    </table></div>`;
+
+  out.querySelectorAll("[data-del]").forEach(b => {
+    b.addEventListener("click", () => {
+      points.splice(parseInt(b.dataset.del, 10), 1);
+      renderTracker();
+    });
+  });
+}
+
+renderAll();
+})();
+</script>
+</body>
+</html>

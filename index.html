@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>臨床ツール</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="臨床ツール">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14171c" media="(prefers-color-scheme: dark)">
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1f2933; --muted: #6b7785;
+    --line: #d9dee5; --accent: #1f6feb; --accent-weak: #e7f0fe;
+    --bar-h: 48px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --card: #1e232b; --text: #e6e9ee; --muted: #9aa5b1;
+      --line: #2d343e; --accent: #5b9bff; --accent-weak: #1d2a40;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    font-size: 16px; line-height: 1.6;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ---- 一覧画面 ---- */
+  #home {
+    max-width: 640px; margin: 0 auto;
+    padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  }
+  h1 { font-size: 1.5rem; margin: 0 0 12px; }
+  .search {
+    width: 100%; padding: 10px 14px; font-size: 1rem; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text); outline: none;
+    margin-bottom: 16px; -webkit-appearance: none;
+  }
+  .search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  .list { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .list li + li { border-top: 1px solid var(--line); }
+  .list a {
+    display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+    color: inherit; text-decoration: none;
+  }
+  .list a:active { background: var(--accent-weak); }
+  .badge {
+    flex: none; width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center;
+    background: var(--accent-weak); color: var(--accent); font-weight: 700; font-size: 1rem;
+  }
+  .meta { flex: 1; min-width: 0; }
+  .name { font-weight: 600; line-height: 1.4; }
+  .sub { color: var(--muted); font-size: 0.8rem; }
+  .chev { color: var(--muted); font-size: 1.2rem; }
+  .empty { color: var(--muted); text-align: center; padding: 24px; }
+  .foot { color: var(--muted); font-size: 0.75rem; text-align: center; margin-top: 20px; }
+
+  /* ---- ツール表示画面 ---- */
+  #viewer { position: fixed; inset: 0; display: none; flex-direction: column; background: var(--bg); }
+  #viewer.open { display: flex; }
+  .bar {
+    flex: none; display: flex; align-items: center; gap: 4px;
+    height: calc(var(--bar-h) + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) calc(8px + env(safe-area-inset-right)) 0 calc(8px + env(safe-area-inset-left));
+    background: var(--card); border-bottom: 1px solid var(--line);
+  }
+  .bar button {
+    border: none; background: none; color: var(--accent); font: inherit; font-size: 1rem;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+  }
+  .bar button:active { background: var(--accent-weak); }
+  .bar .title { flex: 1; min-width: 0; text-align: center; font-weight: 600; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frame-wrap { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; }
+  iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+</style>
+</head>
+<body>
+
+<main id="home">
+  <h1>臨床ツール</h1>
+  <input id="q" class="search" type="search" placeholder="ツールを検索" autocomplete="off">
+  <ul id="list" class="list"></ul>
+  <p id="foot" class="foot"></p>
+</main>
+
+<section id="viewer" aria-hidden="true">
+  <div class="bar">
+    <button id="back" type="button">‹ 一覧</button>
+    <div id="vtitle" class="title"></div>
+    <button id="reload" type="button" aria-label="リセット">↻</button>
+  </div>
+  <div class="frame-wrap"><iframe id="frame" title="ツール"></iframe></div>
+</section>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  let tools = [];
+
+  function render(filter = '') {
+    const f = filter.trim().toLowerCase();
+    const hits = tools.filter(t => !f || t.title.toLowerCase().includes(f) || t.file.toLowerCase().includes(f));
+    $('list').innerHTML = '';
+    if (!hits.length) {
+      $('list').innerHTML = `<li class="empty">${tools.length ? '該当するツールがありません' : 'ツールがありません'}</li>`;
+      return;
+    }
+    for (const t of hits) {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '#/' + encodeURIComponent(t.file);
+      a.innerHTML = `<span class="badge"></span><span class="meta"><div class="name"></div><div class="sub"></div></span><span class="chev">›</span>`;
+      a.querySelector('.badge').textContent = t.title.slice(0, 1);
+      a.querySelector('.name').textContent = t.title;
+      a.querySelector('.sub').textContent = '更新 ' + t.updated;
+      li.appendChild(a);
+      $('list').appendChild(li);
+    }
+  }
+
+  // iframe の読み込みを履歴に積まない（積むと「戻る」がツール側の履歴を戻してしまう）
+  function loadFrame(url) {
+    $('frame').contentWindow.location.replace(url);
+  }
+
+  // ハッシュ（#/ファイル名）で画面を切り替える。戻るジェスチャーでも一覧に戻れる
+  function route() {
+    const m = location.hash.match(/^#\/(.+)$/);
+    const file = m ? decodeURIComponent(m[1]) : null;
+    const tool = file && tools.find(t => t.file === file);
+    if (tool) {
+      $('vtitle').textContent = tool.title;
+      document.title = tool.title;
+      if ($('frame').dataset.file !== tool.file) {
+        $('frame').dataset.file = tool.file;
+        loadFrame(encodeURIComponent(tool.file));
+      }
+      $('viewer').classList.add('open');
+      $('viewer').setAttribute('aria-hidden', 'false');
+    } else {
+      $('viewer').classList.remove('open');
+      $('viewer').setAttribute('aria-hidden', 'true');
+      if ($('frame').dataset.file) loadFrame('about:blank');
+      $('frame').dataset.file = '';
+      document.title = '臨床ツール';
+    }
+  }
+
+  // 一覧から開いたときは履歴を戻す（スワイプで戻るのと同じ）。直接開いたときは一覧へ置き換え
+  let openedFromList = false;
+  $('list').addEventListener('click', () => { openedFromList = true; });
+  $('back').addEventListener('click', () => {
+    if (openedFromList) { openedFromList = false; history.back(); }
+    else { history.replaceState(null, '', location.pathname); route(); }
+  });
+  $('reload').addEventListener('click', () => {
+    if ($('frame').dataset.file) loadFrame(encodeURIComponent($('frame').dataset.file));
+  });
+  $('q').addEventListener('input', (e) => render(e.target.value));
+  window.addEventListener('hashchange', route);
+
+  fetch('tools.json', { cache: 'no-cache' })
+    .then(r => r.json())
+    .then(data => {
+      tools = data.tools || [];
+      $('foot').textContent = `${tools.length} ツール ・ ビルド ${data.built || ''}`;
+      render();
+      route();
+    })
+    .catch(() => { $('list').innerHTML = '<li class="empty">ツール一覧を読み込めませんでした</li>'; });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+    // 新しい版が入ったら一覧画面のときだけ再読み込み（ツール入力中は邪魔しない）
+    let refreshed = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshed || location.hash) return;
+      refreshed = true;
+      location.reload();
+    });
+  }
+})();
+</script>
+</body>
+</html>

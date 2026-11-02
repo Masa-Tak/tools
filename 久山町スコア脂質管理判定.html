@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>久山町スコア 脂質管理判定</title>
+<style>
+body{margin:0}
+
+/* Layout: two-pane clinical worksheet — input sheet left, verdict panel right (stacks on phone) */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --sunk:#e9edef; --ink:#17232b; --muted:#5b6a73; --line:#d3dade;
+  --accent:#1f6f78; --accent-ink:#ffffff;
+  --low:#2f7fc1; --low-bg:#dcecf8; --mid:#a86e00; --mid-bg:#fbefc9; --high:#c0262d; --high-bg:#f9dcdc; --sec:#5d3fa0; --sec-bg:#e8e1f6;
+  --f-display:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo UI","Noto Sans JP",sans-serif;
+  --f-body:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic","Meiryo","Noto Sans JP",sans-serif;
+  --f-num:ui-monospace,"SFMono-Regular",Consolas,Menlo,"Courier New",monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f171c; --surface:#16222a; --sunk:#1d2b34; --ink:#e3eaee; --muted:#93a4ae; --line:#2b3b45;
+  --accent:#5fb7bf; --accent-ink:#0b1418;
+  --low:#7ab8ec; --low-bg:#17324a; --mid:#e8b44a; --mid-bg:#3a2d10; --high:#f07a7f; --high-bg:#4a1c1f; --sec:#b9a2ef; --sec-bg:#2c2347; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f171c; --surface:#16222a; --sunk:#1d2b34; --ink:#e3eaee; --muted:#93a4ae; --line:#2b3b45;
+  --accent:#5fb7bf; --accent-ink:#0b1418;
+  --low:#7ab8ec; --low-bg:#17324a; --mid:#e8b44a; --mid-bg:#3a2d10; --high:#f07a7f; --high-bg:#4a1c1f; --sec:#b9a2ef; --sec-bg:#2c2347; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;border-bottom:2px solid var(--ink);padding-bottom:10px}
+h1{font-family:var(--f-display);font-weight:700;font-size:1.55rem;margin:0;letter-spacing:.02em;text-wrap:balance}
+.src{color:var(--muted);font-size:.8rem}
+.grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.sheet{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 18px 18px}
+fieldset{border:0;border-top:1px solid var(--line);margin:0;padding:14px 0 4px;display:grid;gap:10px}
+fieldset:first-of-type{border-top:0}
+legend{font-family:var(--f-display);font-weight:700;font-size:.82rem;letter-spacing:.08em;color:var(--accent);padding:0;float:left;width:100%;margin-bottom:8px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 14px}
+label.f{display:grid;gap:3px;font-size:.82rem;color:var(--muted)}
+input[type=number],select{font:inherit;font-family:var(--f-num);font-size:1rem;color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:100%}
+select{font-family:var(--f-body);font-size:.9rem}
+input:focus-visible,select:focus-visible,button:focus-visible,.chk input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.unit{font-family:var(--f-num);font-size:.72rem;color:var(--muted)}
+.chks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 14px}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:.88rem;padding:4px 0;cursor:pointer}
+.chk input{margin-top:4px;accent-color:var(--accent);flex:none}
+.chk small{display:block;color:var(--muted);font-size:.74rem;line-height:1.4}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg label{font-size:.88rem;cursor:pointer;background:var(--sunk);position:relative}
+.seg span{display:block;padding:5px 12px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg input:checked+span{background:var(--accent);color:var(--accent-ink)}
+.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:-2px}
+.note{font-size:.76rem;color:var(--muted);margin:0}
+.btns{display:flex;flex-wrap:wrap;gap:8px;padding-top:14px}
+button{font:inherit;font-size:.85rem;border-radius:4px;padding:6px 12px;cursor:pointer;border:1px solid var(--line);background:var(--sunk);color:var(--ink)}
+button.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+/* verdict panel */
+.panel{display:grid;gap:14px;position:sticky;top:12px}
+@media (max-width:860px){.panel{position:static}}
+.verdict{border-radius:6px;padding:16px 18px;border:1px solid var(--line);background:var(--surface);display:grid;gap:10px}
+.verdict .lab{font-size:.74rem;letter-spacing:.1em;color:var(--muted)}
+.cat{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.cat b{font-family:var(--f-display);font-size:1.9rem;line-height:1.1}
+.cat .pct{font-family:var(--f-num);font-size:1.05rem}
+.pill{display:inline-block;font-size:.75rem;padding:2px 8px;border-radius:99px;font-weight:700}
+.v-low{border-left:6px solid var(--low)} .v-low .cat b{color:var(--low)}
+.v-mid{border-left:6px solid var(--mid)} .v-mid .cat b{color:var(--mid)}
+.v-high{border-left:6px solid var(--high)} .v-high .cat b{color:var(--high)}
+.v-sec{border-left:6px solid var(--sec)} .v-sec .cat b{color:var(--sec)}
+.v-na{border-left:6px solid var(--muted)}
+.path{font-size:.8rem;color:var(--muted);margin:0}
+.need{font-size:.95rem;font-weight:500;margin:0}
+.need.yes{color:var(--high)} .need.ok{color:var(--low)}
+table{border-collapse:collapse;width:100%;font-size:.84rem}
+th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{font-weight:500;color:var(--muted);font-size:.74rem;letter-spacing:.04em}
+td.n{font-family:var(--f-num);text-align:right;font-variant-numeric:tabular-nums}
+tr.bad td{background:var(--high-bg)}
+tr.good td.n:last-child{color:var(--low)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:14px 16px;display:grid;gap:8px;min-width:0}
+.card h2{font-family:var(--f-display);font-size:.95rem;margin:0}
+.scroll{overflow-x:auto}
+/* risk strip */
+.strip{display:grid;grid-template-columns:repeat(20,minmax(0,1fr));gap:2px}
+.strip div{font-family:var(--f-num);font-size:.62rem;text-align:center;padding:4px 0 3px;border-radius:2px;line-height:1.2}
+.strip .lo{background:var(--low-bg)} .strip .mi{background:var(--mid-bg)} .strip .hi{background:var(--high-bg)}
+.strip .cur{outline:2px solid var(--ink);outline-offset:0;font-weight:600}
+.strip span{display:block;color:var(--muted);font-size:.58rem}
+@media (max-width:520px){.strip{grid-template-columns:repeat(10,minmax(0,1fr))}}
+.msgs{margin:0;padding-left:1.2em;display:grid;gap:4px;font-size:.84rem}
+pre.out{white-space:pre-wrap;font-family:var(--f-num);font-size:.78rem;background:var(--sunk);border-radius:4px;padding:10px;margin:0;max-height:260px;overflow:auto}
+.example{font-size:.75rem;background:var(--sunk);border-radius:4px;padding:6px 10px;color:var(--muted)}
+footer{font-size:.74rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;display:grid;gap:4px}
+@media (prefers-reduced-motion:no-preference){.verdict{transition:border-color .2s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <h1>久山町スコア 脂質管理判定</h1>
+  <div class="src">準拠：動脈硬化性疾患予防ガイドライン2022年版 第3章 図3-1・図3-2・表3-2・表3-3</div>
+</header>
+
+<div class="example" id="exNote">入力欄には架空の症例例（58歳女性）が入っています。「クリア」で空欄に戻ります。</div>
+
+<div class="grid">
+<form class="sheet" id="f" autocomplete="off">
+  <fieldset>
+    <legend>① 既往・合併症（フローチャート上段）</legend>
+    <div class="chks">
+      <label class="chk"><input type="checkbox" id="cad"><span>冠動脈疾患の既往</span></label>
+      <label class="chk"><input type="checkbox" id="athero"><span>アテローム血栓性脳梗塞の既往<small>明らかなアテローム（頭蓋内外動脈50%以上狭窄／弓部大動脈粥腫 最大肥厚4mm以上）を伴うその他の脳梗塞を含む</small></span></label>
+      <label class="chk"><input type="checkbox" id="acs"><span>急性冠症候群<small>二次予防で厳格管理（表3-3）</small></span></label>
+      <label class="chk"><input type="checkbox" id="dm"><span>糖尿病<small>耐糖能異常は含まない</small></span></label>
+      <label class="chk"><input type="checkbox" id="dmc"><span>糖尿病の細小血管症<small>網膜症・腎症・神経障害</small></span></label>
+      <label class="chk"><input type="checkbox" id="ckd"><span>慢性腎臓病（CKD）</span></label>
+      <label class="chk"><input type="checkbox" id="pad"><span>末梢動脈疾患（PAD）</span></label>
+      <label class="chk"><input type="checkbox" id="fh"><span>家族性高コレステロール血症（FH）</span></label>
+      <label class="chk"><input type="checkbox" id="t3"><span>家族性Ⅲ型高脂血症</span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>② 久山町スコア項目（図3-2）</legend>
+    <div class="row">
+      <label class="f">年齢 <span class="unit">歳</span><input type="number" id="age" min="18" max="110" step="1"></label>
+      <div class="f" style="display:grid;gap:3px;font-size:.82rem;color:var(--muted)">性別
+        <div class="seg" role="radiogroup" aria-label="性別">
+          <label><input type="radio" name="sex" id="sexF" value="F"><span>女性</span></label>
+          <label><input type="radio" name="sex" id="sexM" value="M"><span>男性</span></label>
+        </div>
+      </div>
+      <label class="f">収縮期血圧 <span class="unit">mmHg</span><input type="number" id="sbp" min="60" max="260"></label>
+    </div>
+    <div class="chks">
+      <label class="chk"><input type="checkbox" id="igt"><span>糖代謝異常あり<small>耐糖能異常など（糖尿病は含まない）</small></span></label>
+      <label class="chk"><input type="checkbox" id="smk"><span>現在喫煙あり<small>毎日1本以上習慣的に喫煙。過去喫煙者は「なし」</small></span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>③ 脂質</legend>
+    <div class="row">
+      <label class="f">LDL-C <span class="unit">mg/dL（空欄なら Friedewald で算出）</span><input type="number" id="ldl" min="10" max="600"></label>
+      <label class="f">HDL-C <span class="unit">mg/dL</span><input type="number" id="hdl" min="5" max="200"></label>
+      <label class="f">TG <span class="unit">mg/dL</span><input type="number" id="tg" min="10" max="5000"></label>
+      <label class="f">総コレステロール <span class="unit">mg/dL（non-HDL算出用）</span><input type="number" id="tc" min="50" max="800"></label>
+    </div>
+    <div class="f" style="display:grid;gap:3px;font-size:.82rem;color:var(--muted)">採血条件
+      <div class="seg" role="radiogroup" aria-label="採血条件">
+        <label><input type="radio" name="fast" id="fastY" value="Y"><span>空腹時（10時間以上絶食）</span></label>
+        <label><input type="radio" name="fast" id="fastN" value="N"><span>随時</span></label>
+      </div>
+    </div>
+  </fieldset>
+
+
+  <div class="btns">
+    <button type="button" class="pri" id="sample">症例例を入れる</button>
+    <button type="button" id="clear">クリア</button>
+  </div>
+</form>
+
+<div class="panel">
+  <section class="verdict v-na" id="verdict" aria-live="polite">
+    <div class="lab">管理区分</div>
+    <div class="cat"><b id="catName">—</b><span class="pct" id="catPct"></span></div>
+    <p class="path" id="path"></p>
+    <p class="need" id="need"></p>
+  </section>
+
+  <section class="card" id="scoreCard">
+    <h2>スコア内訳</h2>
+    <div class="scroll"><table id="ptab"><thead><tr><th>項目</th><th>入力</th><th style="text-align:right">点</th></tr></thead><tbody></tbody></table></div>
+    <div id="stripWrap">
+      <p class="note" id="stripLab"></p>
+      <div class="strip" id="strip"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>管理目標値（表3-2）と現在値</h2>
+    <div class="scroll"><table id="ttab"><thead><tr><th>項目</th><th style="text-align:right">目標</th><th style="text-align:right">現在</th></tr></thead><tbody></tbody></table></div>
+    <ul class="msgs" id="msgs"></ul>
+  </section>
+
+
+  <section class="card">
+    <h2>カルテ記載用</h2>
+    <pre class="out" id="out"></pre>
+    <div class="btns" style="padding-top:0"><button type="button" id="copy">コピー</button><span class="note" id="copied" style="align-self:center"></span></div>
+  </section>
+</div>
+</div>
+
+<footer>
+  <div>絶対リスク区分：10年間の動脈硬化性疾患（冠動脈疾患＋アテローム血栓性脳梗塞）発症確率 2%未満＝低リスク、2〜10%未満＝中リスク、10%以上＝高リスク。スコア対象は40〜79歳。</div>
+  <div>管理目標値は到達努力目標。80歳以上の一次予防は個別判断（第7章）。40歳未満は絶対リスクを算出できない。FH・家族性Ⅲ型高脂血症は第4章・第5章に従う。</div>
+</footer>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+// 図3-2 右表：ポイント合計0–19 × 年齢階級。null は "<1.0%"
+const RISK={
+ '40':[null,null,null,null,null,null,null,null,1.1,1.3,1.4,1.7,1.9,2.2,2.6,3.0,3.4,3.9,4.5,5.2],
+ '50':[null,null,null,1.1,1.3,1.4,1.7,1.9,2.2,2.6,3.0,3.4,3.9,4.5,5.2,6.0,6.9,7.9,9.1,10.4],
+ '60':[1.7,1.9,2.2,2.6,3.0,3.4,3.9,4.5,5.2,6.0,6.9,7.9,9.1,10.4,11.9,13.6,15.5,17.7,20.2,22.9],
+ '70':[3.4,3.9,4.5,5.2,6.0,6.9,7.9,9.1,10.4,11.9,13.6,15.5,17.7,20.2,22.9,25.9,29.3,33.0,37.0,41.1]
+};
+// 図3-1 の点数カットオフ（年齢階級別）: [低リスク上限, 中リスク上限] ; -1 は該当なし
+const CUT={'40':[12,19],'50':[7,18],'60':[1,12],'70':[-1,7]};
+const BANDNAME={'40':'40〜49歳','50':'50〜59歳','60':'60〜69歳','70':'70〜79歳'};
+const TARGET={
+ low:{ldl:160,nh:190,label:'低リスク'}, mid:{ldl:140,nh:170,label:'中リスク'},
+ high:{ldl:120,nh:150,label:'高リスク'}, highDM:{ldl:100,nh:130,label:'高リスク（糖尿病・合併症/喫煙あり）'},
+ sec:{ldl:100,nh:130,label:'二次予防'}, secStrict:{ldl:70,nh:100,label:'二次予防（厳格管理）'}
+};
+const ids=['cad','athero','acs','dm','dmc','ckd','pad','fh','t3','age','sbp','igt','smk','ldl','hdl','tg','tc'];
+const num=id=>{const v=$(id).value.trim();return v===''?null:Number(v)};
+const on=id=>$(id).checked;
+const fmtR=r=>r==null?'<1.0%':r.toFixed(1)+'%';
+
+function ptsSBP(s){return s<120?0:s<130?1:s<140?2:s<160?3:4}
+function ptsLDL(l){return l<120?0:l<140?1:l<160?2:3}
+function ptsHDL(h){return h>=60?0:h>=40?1:2}
+function band(a){return a>=40&&a<50?'40':a<60&&a>=50?'50':a<70&&a>=60?'60':a<80&&a>=70?'70':null}
+
+function compute(){
+  const rv=n=>{const e=document.querySelector('input[name='+n+']:checked');return e?e.value:null};
+  const sex=rv('sex'),fast=rv('fast');
+  const age=num('age'),sbp=num('sbp'),hdl=num('hdl'),tg=num('tg'),tc=num('tc');
+  let ldl=num('ldl'),ldlCalc=false;
+  if(ldl==null&&tc!=null&&hdl!=null&&tg!=null&&fast==='Y'&&tg<400){ldl=Math.round(tc-hdl-tg/5);ldlCalc=true}
+  const nonhdl=(tc!=null&&hdl!=null)?tc-hdl:null;
+  const R={age,sex,sbp,hdl,tg,tc,ldl,ldlCalc,nonhdl,fast,path:[],msgs:[],cat:null,pts:null,risk:null,band:null,target:null,miss:[]};
+  const sec=on('cad')||on('athero');
+  if(sec){
+    R.path.push('冠動脈疾患／アテローム血栓性脳梗塞の既往あり → 二次予防');
+    const strict=on('acs')||on('fh')||on('dm')||(on('cad')&&on('athero'));
+    R.cat='sec';R.target=strict?TARGET.secStrict:TARGET.sec;
+    if(strict){const why=[on('acs')&&'急性冠症候群',on('fh')&&'FH',on('dm')&&'糖尿病',(on('cad')&&on('athero'))&&'冠動脈疾患＋アテローム血栓性脳梗塞'].filter(Boolean).join('・');R.path.push('表3-3 該当（'+why+'）→ LDL-C<70 を考慮')}
+  } else if(on('fh')||on('t3')){
+    R.cat='ref';R.path.push((on('fh')?'家族性高コレステロール血症':'家族性Ⅲ型高脂血症')+' → 図3-1を用いない');
+  } else if(on('dm')||on('ckd')||on('pad')){
+    const why=[on('dm')&&'糖尿病',on('ckd')&&'CKD',on('pad')&&'PAD'].filter(Boolean).join('・');
+    R.path.push('既往なし → '+why+' あり → 高リスク（スコア計算不要）');
+    R.cat='high';
+    const dmStrict=on('dm')&&(on('pad')||on('dmc')||on('smk'));
+    R.target=dmStrict?TARGET.highDM:TARGET.high;
+    if(dmStrict)R.path.push('糖尿病＋'+[on('pad')&&'PAD',on('dmc')&&'細小血管症',on('smk')&&'喫煙'].filter(Boolean).join('・')+' → LDL-C<100 を考慮');
+  } else {
+    R.path.push('既往なし → 糖尿病・CKD・PADなし → 久山町スコア');
+    if(age==null){R.cat='na';R.miss.push('年齢')}
+    else if(age<40){R.cat='u40';R.path.push('40歳未満：絶対リスクは算出できない（脂質管理の是非は主治医判断）')}
+    else if(age>=80){R.cat='o80';R.path.push('80歳以上：スコアを管理目標値に直結させず個別判断（第7章）')}
+    else{
+      R.band=band(age);
+      const need={'性別':sex,'収縮期血圧':sbp,'LDL-C':ldl,'HDL-C':hdl};
+      for(const k in need)if(need[k]==null)R.miss.push(k);
+      if(R.miss.length){R.cat='na'}
+      else{
+        R.items=[
+          ['性別',sex==='M'?'男性':'女性',sex==='M'?7:0],
+          ['収縮期血圧',sbp+' mmHg',ptsSBP(sbp)],
+          ['糖代謝異常',on('igt')?'あり':'なし',on('igt')?1:0],
+          ['LDL-C',ldl+' mg/dL'+(ldlCalc?'（F式）':''),ptsLDL(ldl)],
+          ['HDL-C',hdl+' mg/dL',ptsHDL(hdl)],
+          ['喫煙',on('smk')?'あり':'なし',on('smk')?2:0]
+        ];
+        R.pts=R.items.reduce((s,i)=>s+i[2],0);
+        R.risk=RISK[R.band][R.pts];
+        const c=CUT[R.band];
+        R.cat=R.pts<=c[0]?'low':R.pts<=c[1]?'mid':'high';
+        R.target=TARGET[R.cat];
+        R.path.push(BANDNAME[R.band]+'・'+R.pts+'点 → 10年発症リスク '+fmtR(R.risk));
+      }
+    }
+  }
+  // 判定
+  if(R.target){
+    const t=R.target;R.need=null;
+    const useNH=(tg!=null&&tg>=400)||fast==='N';
+    R.useNH=useNH;
+    const primary=R.cat!=='sec';
+    if(useNH&&nonhdl==null){R.msgs.push('TG≧400 または随時採血のため、本来は non-HDL-C で評価します。総コレステロールを入力してください。')}
+    const metricVal=useNH?nonhdl:ldl, metricT=useNH?t.nh:t.ldl, metricName=useNH?'non-HDL-C':'LDL-C';
+    if(metricVal!=null){
+      R.above=metricVal>=metricT;
+      R.redPct=R.above?Math.ceil((metricVal-(metricT-1))/metricVal*100):0;
+      R.metricName=metricName;R.metricVal=metricVal;R.metricT=metricT;
+    }
+    if(primary){
+      if(ldl!=null&&ldl>=180)R.msgs.push('LDL-C 180 mg/dL以上：いずれの管理区分でも薬物治療を考慮。FHの可能性も念頭に（第4章）。');
+      R.msgs.push('一次予防：原則として3〜6か月の生活習慣改善後に薬物療法の適用を考慮。');
+      if(R.cat==='low'||R.cat==='mid')R.msgs.push('低・中リスクでは LDL-C 低下率20〜30%も目標になり得る。');
+    } else {
+      R.msgs.push('二次予防：生活習慣の是正とともに薬物治療を考慮。');
+      if(R.target===TARGET.sec)R.msgs.push('LDL-C<100 の管理が難しい場合、50%以上の低下を目標とすることも可。');
+    }
+    R.msgs.push('まず LDL-C 目標を達成し、次に non-HDL-C を目指す。');
+  }
+  return R;
+}
+
+function render(){
+  const R=compute();
+  const v=$('verdict');
+  const cls={low:'v-low',mid:'v-mid',high:'v-high',sec:'v-sec'}[R.cat]||'v-na';
+  v.className='verdict '+cls;
+  const names={low:'低リスク',mid:'中リスク',high:'高リスク',sec:'二次予防',ref:'別章で判断',u40:'算出対象外',o80:'個別判断',na:'入力待ち'};
+  $('catName').textContent=names[R.cat]||'—';
+  $('catPct').textContent=R.risk!==null&&R.pts!=null?'10年リスク '+fmtR(R.risk):'';
+  $('path').innerHTML=R.path.map(s=>'・'+s).join('<br>')+(R.miss.length?'<br>未入力：'+R.miss.join('、'):'');
+  const need=$('need');need.className='need';
+  if(R.cat==='ref'){need.textContent='第4章「家族性高コレステロール血症」／第5章「原発性脂質異常症」に従ってください。'}
+  else if(R.metricVal!=null){
+    if(R.above){need.className='need yes';need.textContent=R.metricName+' '+R.metricVal+' は目標 <'+R.metricT+' 未達。目標到達には約'+R.redPct+'%の低下が必要。'}
+    else{need.className='need ok';need.textContent=R.metricName+' '+R.metricVal+' は目標 <'+R.metricT+' を達成。'}
+  } else need.textContent=R.target?'脂質値を入力すると目標との差を表示します。':'';
+
+  // score table
+  const tb=$('ptab').tBodies[0];tb.innerHTML='';
+  if(R.items){for(const[i,val,p]of R.items){tb.insertAdjacentHTML('beforeend',`<tr><td>${i}</td><td>${val}</td><td class="n">${p}</td></tr>`)}
+    tb.insertAdjacentHTML('beforeend',`<tr><td><b>合計</b></td><td></td><td class="n"><b>${R.pts}</b></td></tr>`)}
+  else tb.insertAdjacentHTML('beforeend',`<tr><td colspan="3" class="note">${R.cat==='sec'||R.cat==='high'?'この区分ではスコア計算を行いません（図3-1）。':'スコア対象外または入力不足です。'}</td></tr>`);
+  // strip
+  const st=$('strip');st.innerHTML='';
+  if(R.band){
+    $('stripWrap').hidden=false;
+    $('stripLab').textContent=BANDNAME[R.band]+'のポイント合計別 10年発症リスク（図3-2）';
+    const c=CUT[R.band];
+    RISK[R.band].forEach((r,i)=>{const k=i<=c[0]?'lo':i<=c[1]?'mi':'hi';st.insertAdjacentHTML('beforeend',`<div class="${k}${i===R.pts?' cur':''}"><span>${i}</span>${r==null?'<1':r.toFixed(1)}</div>`)});
+  } else $('stripWrap').hidden=true;
+
+  // targets
+  const tt=$('ttab').tBodies[0];tt.innerHTML='';
+  if(R.target){
+    const t=R.target;
+    const row=(n,tgt,cur,bad)=>tt.insertAdjacentHTML('beforeend',`<tr class="${cur==null?'':bad?'bad':'good'}"><td>${n}</td><td class="n">${tgt}</td><td class="n">${cur==null?'—':cur}</td></tr>`);
+    row('LDL-C'+(R.ldlCalc?'（F式）':''),'<'+t.ldl,R.ldl,R.ldl!=null&&R.ldl>=t.ldl);
+    row('non-HDL-C','<'+t.nh,R.nonhdl,R.nonhdl!=null&&R.nonhdl>=t.nh);
+    const tgT=R.fast==='N'?175:150;
+    row('TG（'+(R.fast==='N'?'随時':'空腹時')+'）','<'+tgT,R.tg,R.tg!=null&&R.tg>=tgT);
+    row('HDL-C','≥40',R.hdl,R.hdl!=null&&R.hdl<40);
+  } else tt.insertAdjacentHTML('beforeend','<tr><td colspan="3" class="note">管理区分が決まると表示します。</td></tr>');
+  $('msgs').innerHTML=(R.msgs||[]).map(m=>'<li>'+m+'</li>').join('');
+
+
+  // chart text
+  const L=[];
+  L.push('【脂質管理（JAS 2022）】');
+  if(R.age!=null)L.push(`${R.age}歳 ${R.sex==='M'?'男性':R.sex==='F'?'女性':''}`.trim());
+  L.push('管理区分：'+(names[R.cat]||'—')+(R.target&&R.target.label!==names[R.cat]?'（'+R.target.label+'）':''));
+  if(R.pts!=null)L.push(`久山町スコア ${R.pts}点（${R.items.map(i=>i[0]+i[2]).join('/')}）→ 10年リスク ${fmtR(R.risk)}`);
+  if(R.target)L.push(`目標 LDL-C<${R.target.ldl}, non-HDL-C<${R.target.nh}, TG<${R.fast==='N'?175:150}(${R.fast==='N'?'随時':'空腹'}), HDL-C≥40`);
+  const labs=[R.ldl!=null&&'LDL-C '+R.ldl+(R.ldlCalc?'(F)':''),R.hdl!=null&&'HDL-C '+R.hdl,R.tg!=null&&'TG '+R.tg,R.nonhdl!=null&&'non-HDL-C '+R.nonhdl].filter(Boolean);
+  if(labs.length)L.push('現在：'+labs.join(', '));
+  if(R.metricVal!=null)L.push(R.above?`→ ${R.metricName} 目標未達（約${R.redPct}%低下が必要）`:`→ ${R.metricName} 目標達成`);
+  $('out').textContent=L.join('\n');
+}
+
+const SAMPLE={age:58,sex:'F',sbp:132,ldl:152,hdl:58,tg:120,tc:234,fast:'Y',checks:[]};
+function fill(s){
+  ids.forEach(id=>{const e=$(id);if(e.type==='checkbox')e.checked=false;else e.value=''});
+  document.querySelectorAll('input[type=radio]').forEach(r=>r.checked=false);
+  if(!s)return;
+  ['age','sbp','ldl','hdl','tg','tc'].forEach(k=>{if(s[k]!=null)$(k).value=s[k]});
+  if(s.sex)$(s.sex==='M'?'sexM':'sexF').checked=true;
+  if(s.fast)$(s.fast==='Y'?'fastY':'fastN').checked=true;
+  (s.checks||[]).forEach(c=>$(c).checked=true);
+}
+$('f').addEventListener('input',render);$('f').addEventListener('change',render);
+$('f').addEventListener('submit',e=>e.preventDefault());
+$('sample').addEventListener('click',()=>{fill(SAMPLE);$('exNote').hidden=false;render()});
+$('clear').addEventListener('click',()=>{fill(null);$('exNote').hidden=true;render()});
+$('copy').addEventListener('click',()=>{
+  const t=$('out').textContent;
+  const done=()=>{$('copied').textContent='コピーしました'};
+  const fb=()=>{const r=document.createRange();r.selectNodeContents($('out'));const s=getSelection();s.removeAllRanges();s.addRange(r);$('copied').textContent='選択しました。Ctrl/⌘+C でコピーしてください'};
+  try{navigator.clipboard.writeText(t).then(done,fb)}catch(e){fb()}
+});
+fill(SAMPLE);render();
+})();
+</script>
+
+</body>
+</html>

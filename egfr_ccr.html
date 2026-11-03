@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eGFR・個別化eGFR・CCr 計算</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1f2933; --muted: #6b7785;
+    --line: #d9dee5; --accent: #1f6feb; --accent-weak: #e7f0fe;
+    --result: #0b5d3b; --result-bg: #e8f6ee; --result-line: #b7e1c8;
+    --warn: #9a5b00; --warn-bg: #fff6e5; --err: #b42318; --input-bg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --card: #1e232b; --text: #e6e9ee; --muted: #9aa5b1;
+      --line: #2d343e; --accent: #5b9bff; --accent-weak: #1d2a40;
+      --result: #6fd3a0; --result-bg: #15291f; --result-line: #24503a;
+      --warn: #f0b85a; --warn-bg: #2e2412; --err: #ff8a80; --input-bg: #171b21;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    font-size: 16px; line-height: 1.6;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 8px; margin-bottom: 16px; }
+  .field { margin-bottom: 16px; }
+  .label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.95rem; }
+  .label .use { font-weight: normal; color: var(--muted); font-size: 0.75rem; margin-left: 4px; }
+  .seg { display: flex; border: 1px solid var(--accent); border-radius: 8px; overflow: hidden; }
+  .seg input { display: none; }
+  .seg label {
+    flex: 1; text-align: center; padding: 9px 4px; cursor: pointer; color: var(--accent);
+    border-right: 1px solid var(--accent); user-select: none; font-weight: 600;
+  }
+  .seg label:last-of-type { border-right: none; }
+  .seg input:checked + label { background: var(--accent); color: #fff; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row .field { flex: 1 1 130px; }
+  .inp { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--input-bg); }
+  .inp:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  .inp input { flex: 1; min-width: 0; border: none; outline: none; padding: 10px 12px; font-size: 1.05rem; background: transparent; color: var(--text); text-align: right; }
+  .inp span { padding: 0 12px 0 4px; color: var(--muted); white-space: nowrap; font-size: 0.9rem; }
+  .inp.bad { border-color: var(--err); }
+  .opt { display: flex; align-items: flex-start; gap: 8px; font-size: 0.9rem; margin-bottom: 14px; }
+  .opt input { margin-top: 5px; }
+  .opt small { color: var(--muted); }
+  .err { color: var(--err); font-size: 0.9rem; min-height: 1.2em; margin-bottom: 8px; }
+
+  .result { background: var(--result-bg); border: 1px solid var(--result-line); border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+  .result .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .result .big-label { font-size: 0.9rem; color: var(--result); font-weight: 600; }
+  .result .formula { font-size: 0.75rem; color: var(--muted); }
+  .result .big { font-size: 2.1rem; font-weight: 700; color: var(--result); line-height: 1.25; }
+  .result .big small { font-size: 0.95rem; font-weight: 600; }
+  .result .detail { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+  .stage { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; vertical-align: middle; background: var(--card); border: 1px solid var(--result-line); color: var(--result); }
+  .result .detail b { color: var(--result); }
+  .wtab { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 10px; }
+  .wtab th, .wtab td { padding: 5px 4px; border-bottom: 1px solid var(--result-line); text-align: right; }
+  .wtab th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+  .wtab th:first-child, .wtab td:first-child { text-align: left; }
+  .wtab tr.rec td { font-weight: 700; color: var(--result); }
+  .wtab tr.rec td:first-child::after { content: " ★"; }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; margin: 0 0 12px; }
+  .warn:empty { display: none; }
+
+  button.reset { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; color: var(--muted); font-size: 0.9rem; margin: 4px 0 16px; }
+  .note { font-size: 0.8rem; color: var(--muted); }
+  .note ul { padding-left: 1.2em; margin: 6px 0; }
+  .note b { color: var(--text); font-weight: 600; }
+  @media print { body { background: #fff; } button.reset { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>eGFR・個別化eGFR・CCr 計算</h1>
+  <p class="sub">共通の項目は1回の入力で、3つの指標を同時に計算します（オフラインで動作）</p>
+
+  <div class="card">
+    <div class="field">
+      <span class="label">性別 <span class="use">全項目</span></span>
+      <div class="seg">
+        <input type="radio" name="sex" id="sM" value="M" checked><label for="sM">男性</label>
+        <input type="radio" name="sex" id="sF" value="F"><label for="sF">女性</label>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label class="label" for="age">年齢 <span class="use">全項目</span></label>
+        <div class="inp"><input id="age" type="number" inputmode="numeric" min="18" max="120" step="1"><span>歳</span></div>
+      </div>
+      <div class="field">
+        <label class="label" for="cr">血清Cr <span class="use">全項目</span></label>
+        <div class="inp"><input id="cr" type="number" inputmode="decimal" min="0.1" max="30" step="0.01"><span>mg/dL</span></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label class="label" for="ht">身長 <span class="use">個別化eGFR・理想体重</span></label>
+        <div class="inp"><input id="ht" type="number" inputmode="decimal" min="100" max="230" step="0.1"><span>cm</span></div>
+      </div>
+      <div class="field">
+        <label class="label" for="wt">体重 <span class="use">個別化eGFR・CCr</span></label>
+        <div class="inp"><input id="wt" type="number" inputmode="decimal" min="20" max="300" step="0.1"><span>kg</span></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label class="label" for="cys">シスタチンC <span class="use">任意・eGFRcys</span></label>
+        <div class="inp"><input id="cys" type="number" inputmode="decimal" min="0.3" max="10" step="0.01"><span>mg/L</span></div>
+      </div>
+      <div class="field" aria-hidden="true"></div>
+    </div>
+
+    <label class="opt"><input type="checkbox" id="crAdj">
+      <span>CCr 計算時に Cr に 0.2 を加える<br><small>酵素法の Cr を Jaffe 法相当に換算する補正（Cockcroft-Gault 式は Jaffe 法の時代に作られたため）</small></span></label>
+    <div class="err" id="err"></div>
+  </div>
+
+  <p class="warn" id="warn"></p>
+
+  <div class="result">
+    <div class="head">
+      <span class="big-label">eGFR（標準化）</span>
+      <span class="formula">日本腎臓学会 推算式</span>
+    </div>
+    <div class="big"><span id="outEgfr">—</span> <small>mL/min/1.73m²</small><span class="stage" id="outStage" hidden></span></div>
+    <div class="detail">CKD の重症度分類・腎機能の評価に使用</div>
+  </div>
+
+  <div class="result">
+    <div class="head">
+      <span class="big-label">個別化 eGFR（体表面積補正なし）</span>
+      <span class="formula">eGFR × BSA ÷ 1.73</span>
+    </div>
+    <div class="big"><span id="outIndiv">—</span> <small>mL/min</small></div>
+    <div class="detail">体表面積（DuBois 式）<span id="outBsa">—</span> m² ・ 腎排泄型薬剤の投与量設計に使用</div>
+  </div>
+
+  <div class="result">
+    <div class="head">
+      <span class="big-label">クレアチニンクリアランス（推算）</span>
+      <span class="formula">Cockcroft-Gault 式</span>
+    </div>
+    <div class="big"><span id="outCcr">—</span> <small>mL/min</small></div>
+    <div class="detail" id="outCcrDetail">実体重で計算</div>
+    <table class="wtab" id="wtab" hidden>
+      <tr><th>使用体重</th><th>体重</th><th>CCr</th></tr>
+      <tr id="rowTbw"><td>実体重</td><td id="wTbw">—</td><td id="cTbw">—</td></tr>
+      <tr id="rowIbw"><td>理想体重</td><td id="wIbw">—</td><td id="cIbw">—</td></tr>
+      <tr id="rowAbw"><td>補正体重</td><td id="wAbw">—</td><td id="cAbw">—</td></tr>
+    </table>
+    <div class="detail" id="wtHint"></div>
+  </div>
+
+  <div class="result" id="cysBox" hidden>
+    <div class="head">
+      <span class="big-label">eGFRcys（シスタチンC）</span>
+      <span class="formula">日本腎臓学会 推算式</span>
+    </div>
+    <div class="big"><span id="outCys">—</span> <small>mL/min/1.73m²</small><span class="stage" id="outCysStage" hidden></span></div>
+    <div class="detail">個別化 eGFRcys <b id="outCysIndiv">—</b> mL/min ・ eGFRcr との平均 <b id="outMean">—</b> mL/min/1.73m²</div>
+    <div class="detail">筋肉量の影響を受けにくく、やせ・サルコペニア・長期臥床の患者で有用</div>
+  </div>
+
+  <button class="reset" id="resetBtn" type="button">入力をクリア</button>
+
+  <div class="note">
+    <ul>
+      <li><b>eGFR</b> = 194 × Cr<sup>−1.094</sup> × 年齢<sup>−0.287</sup>（女性は × 0.739）。18歳以上が対象です。</li>
+      <li><b>体表面積</b>（DuBois）= 0.007184 × 体重<sup>0.425</sup> × 身長<sup>0.725</sup></li>
+      <li><b>CCr</b> =（140 − 年齢）× 体重 ÷（72 × Cr）（女性は × 0.85）</li>
+      <li><b>理想体重</b>（Devine）= 男性 50 ／ 女性 45.5 + 0.91 ×（身長 − 152.4）kg。<b>補正体重</b> = 理想体重 + 0.4 ×（実体重 − 理想体重）</li>
+      <li>★は使用体重の目安：実体重 &lt; 理想体重なら実体重、実体重が理想体重の 120% を超えれば補正体重、それ以外は理想体重。施設や薬剤ごとの取り決めがあればそちらを優先してください。</li>
+      <li><b>eGFRcys</b> =（104 × シスタチンC<sup>−1.019</sup> × 0.996<sup>年齢</sup>（女性は × 0.929））− 8</li>
+      <li>CKD 重症度分類：G1 ≥90、G2 60–89、G3a 45–59、G3b 30–44、G4 15–29、G5 &lt;15</li>
+      <li>筋肉量が極端に少ない・多い場合（長期臥床、四肢切断、サルコペニア、アスリートなど）は Cr に基づく推算値の誤差が大きくなります。シスタチン C による eGFR や実測 CCr を検討してください。</li>
+      <li>肥満では実体重による CCr が過大評価されやすくなります。腎機能が急に変化している時期は、どの推算式も正確ではありません。</li>
+      <li>薬剤の添付文書が CCr と eGFR のどちらで用量を定めているかを確認して使い分けてください。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var fields = ["age", "cr", "ht", "wt", "cys"];
+  var limits = {
+    age: [18, 120, "年齢は18〜120歳で入力してください（eGFR 推算式は18歳以上が対象）"],
+    cr:  [0.1, 30, "血清Cr は 0.1〜30 mg/dL で入力してください"],
+    ht:  [100, 230, "身長は 100〜230 cm で入力してください"],
+    wt:  [20, 300, "体重は 20〜300 kg で入力してください"],
+    cys: [0.3, 10, "シスタチンC は 0.3〜10 mg/L で入力してください"]
+  };
+
+  function num(id) {
+    var v = $(id).value.trim();
+    return v === "" ? null : Number(v);
+  }
+  function fmt(v, d) { return v.toFixed(d); }
+
+  function stageOf(e) {
+    if (e >= 90) return "G1";
+    if (e >= 60) return "G2";
+    if (e >= 45) return "G3a";
+    if (e >= 30) return "G3b";
+    if (e >= 15) return "G4";
+    return "G5";
+  }
+
+  function calc() {
+    var female = $("sF").checked;
+    var v = {}, errs = [];
+    fields.forEach(function (id) {
+      var x = num(id), lim = limits[id];
+      var bad = x !== null && (isNaN(x) || x < lim[0] || x > lim[1]);
+      $(id).parentNode.classList.toggle("bad", bad);
+      if (bad) errs.push(lim[2]);
+      v[id] = bad ? null : x;
+    });
+    $("err").textContent = errs.join(" / ");
+
+    // eGFR：年齢・Cr・性別
+    var egfr = null;
+    if (v.age !== null && v.cr !== null) {
+      egfr = 194 * Math.pow(v.cr, -1.094) * Math.pow(v.age, -0.287) * (female ? 0.739 : 1);
+      $("outEgfr").textContent = fmt(egfr, 1);
+      $("outStage").textContent = stageOf(egfr);
+      $("outStage").hidden = false;
+    } else {
+      $("outEgfr").textContent = "—";
+      $("outStage").hidden = true;
+    }
+
+    // 個別化 eGFR：eGFR ＋ 身長・体重
+    var bsa = null;
+    if (v.ht !== null && v.wt !== null) {
+      bsa = 0.007184 * Math.pow(v.wt, 0.425) * Math.pow(v.ht, 0.725);
+      $("outBsa").textContent = " " + fmt(bsa, 2) + " ";
+    } else {
+      $("outBsa").textContent = " — ";
+    }
+    $("outIndiv").textContent = (egfr !== null && bsa !== null) ? fmt(egfr * bsa / 1.73, 1) : "—";
+
+    // CCr：年齢・Cr・体重・性別（身長があれば理想体重・補正体重でも計算）
+    $("wtab").hidden = true;
+    $("wtHint").textContent = "";
+    if (v.age !== null && v.cr !== null && v.wt !== null) {
+      var crUsed = v.cr + ($("crAdj").checked ? 0.2 : 0);
+      var ccrOf = function (w) { return (140 - v.age) * w / (72 * crUsed) * (female ? 0.85 : 1); };
+      $("outCcr").textContent = fmt(ccrOf(v.wt), 1);
+      $("outCcrDetail").textContent = "実体重で計算" + ($("crAdj").checked ? "・Cr " + fmt(crUsed, 2) + " mg/dL（+0.2 補正）を使用" : "");
+
+      var ibw = v.ht !== null ? (female ? 45.5 : 50) + 0.91 * (v.ht - 152.4) : null;
+      if (ibw !== null && ibw > 0) {
+        var abw = ibw + 0.4 * (v.wt - ibw);
+        $("wTbw").textContent = fmt(v.wt, 1) + " kg"; $("cTbw").textContent = fmt(ccrOf(v.wt), 1);
+        $("wIbw").textContent = fmt(ibw, 1) + " kg"; $("cIbw").textContent = fmt(ccrOf(ibw), 1);
+        $("wAbw").textContent = fmt(abw, 1) + " kg"; $("cAbw").textContent = fmt(ccrOf(abw), 1);
+        var ratio = v.wt / ibw, rec, why;
+        if (v.wt < ibw) { rec = "rowTbw"; why = "実体重が理想体重より少ないため実体重"; }
+        else if (ratio > 1.2) { rec = "rowAbw"; why = "実体重が理想体重の " + Math.round(ratio * 100) + "% のため補正体重"; }
+        else { rec = "rowIbw"; why = "実体重が理想体重の " + Math.round(ratio * 100) + "% のため理想体重"; }
+        ["rowTbw", "rowIbw", "rowAbw"].forEach(function (id) { $(id).classList.toggle("rec", id === rec); });
+        $("wtHint").textContent = "★ 使用体重の目安：" + why;
+        $("wtab").hidden = false;
+      }
+    } else {
+      $("outCcr").textContent = "—";
+      $("outCcrDetail").textContent = "実体重で計算";
+    }
+
+    // eGFRcys：シスタチンC・年齢・性別（未入力なら非表示）
+    if (v.cys !== null && v.age !== null) {
+      var ecys = 104 * Math.pow(v.cys, -1.019) * Math.pow(0.996, v.age) * (female ? 0.929 : 1) - 8;
+      $("outCys").textContent = fmt(ecys, 1);
+      $("outCysStage").textContent = stageOf(ecys);
+      $("outCysStage").hidden = false;
+      $("outCysIndiv").textContent = bsa !== null ? fmt(ecys * bsa / 1.73, 1) : "—";
+      $("outMean").textContent = egfr !== null ? fmt((egfr + ecys) / 2, 1) : "—";
+      $("cysBox").hidden = false;
+    } else {
+      $("cysBox").hidden = true;
+    }
+
+    // 体格に関する注意
+    var warn = "";
+    if (v.ht !== null && v.wt !== null) {
+      var bmi = v.wt / Math.pow(v.ht / 100, 2);
+      if (bmi >= 30) warn = "BMI " + fmt(bmi, 1) + "：肥満では CCr（実体重）が過大評価されやすくなります。";
+      else if (bmi < 18.5) warn = "BMI " + fmt(bmi, 1) + "：やせ・筋肉量低下では Cr に基づく推算値が腎機能を過大評価しやすくなります。";
+    }
+    $("warn").textContent = warn;
+  }
+
+  fields.forEach(function (id) { $(id).addEventListener("input", calc); });
+  ["sM", "sF", "crAdj"].forEach(function (id) { $(id).addEventListener("change", calc); });
+  $("resetBtn").addEventListener("click", function () {
+    fields.forEach(function (id) { $(id).value = ""; });
+    $("sM").checked = true;
+    $("crAdj").checked = false;
+    calc();
+    $("age").focus();
+  });
+  calc();
+})();
+</script>
+</body>
+</html>

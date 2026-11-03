@@ -1,7 +1,12 @@
 {
-  "built": "2026-11-02 22:16",
-  "version": "1ebe671bd73f",
+  "built": "2026-11-03 09:25",
+  "version": "a5f66d4b601b",
   "tools": [
+    {
+      "file": "egfr_ccr.html",
+      "title": "eGFR・個別化eGFR・CCr 計算",
+      "updated": "2026-11-03"
+    },
     {
       "file": "久山町スコア脂質管理判定.html",
       "title": "久山町スコア 脂質管理判定",

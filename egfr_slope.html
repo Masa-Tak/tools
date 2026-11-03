@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eGFR スロープ計算</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1f2933; --muted: #6b7785;
+    --line: #d9dee5; --accent: #1f6feb; --accent-weak: #e7f0fe;
+    --result: #0b5d3b; --result-bg: #e8f6ee; --result-line: #b7e1c8;
+    --warn: #9a5b00; --warn-bg: #fff6e5; --err: #b42318; --err-bg: #fdecea; --input-bg: #ffffff;
+    --ok: #0b5d3b; --ok-bg: #e8f6ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --card: #1e232b; --text: #e6e9ee; --muted: #9aa5b1;
+      --line: #2d343e; --accent: #5b9bff; --accent-weak: #1d2a40;
+      --result: #6fd3a0; --result-bg: #15291f; --result-line: #24503a;
+      --warn: #f0b85a; --warn-bg: #2e2412; --err: #ff8a80; --err-bg: #3a1a18; --input-bg: #171b21;
+      --ok: #6fd3a0; --ok-bg: #15291f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    font-size: 16px; line-height: 1.6;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  h2 { font-size: 1rem; margin: 0 0 10px; }
+  .sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 16px 10px; margin-bottom: 16px; }
+  .label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.95rem; }
+  .label .use { font-weight: normal; color: var(--muted); font-size: 0.75rem; margin-left: 4px; }
+  .inp { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--input-bg); }
+  .inp:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  .inp input { flex: 1; min-width: 0; border: none; outline: none; padding: 9px 10px; font-size: 1.05rem; background: transparent; color: var(--text); text-align: right; font-family: inherit; }
+  .inp input[type=date] { text-align: left; -webkit-appearance: none; min-height: 2.6em; font-size: 0.95rem; padding: 9px 6px 9px 8px; }
+  .inp span { padding: 0 10px 0 2px; color: var(--muted); white-space: nowrap; font-size: 0.8rem; }
+  .inp.bad { border-color: var(--err); }
+
+  .pts { display: grid; grid-template-columns: 1.4em minmax(0, 1.25fr) minmax(0, 1fr) 1.8em; gap: 6px; align-items: center; }
+  .pts .inp input { width: 100%; }
+  .pts .hd { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+  .pts .no { color: var(--muted); font-size: 0.85rem; text-align: center; }
+  .del { border: none; background: none; color: var(--muted); font-size: 1.3rem; cursor: pointer; padding: 0; line-height: 1; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 6px; }
+  .btn { background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 0.9rem; font-family: inherit; }
+  .btn.sub2 { border-color: var(--line); color: var(--muted); }
+  .agef { max-width: 200px; margin-top: 8px; }
+  .err { color: var(--err); font-size: 0.9rem; min-height: 1.2em; margin: 4px 0; }
+
+  .result { background: var(--result-bg); border: 1px solid var(--result-line); border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+  .big-label { font-size: 0.9rem; color: var(--result); font-weight: 600; }
+  .big { font-size: 2.1rem; font-weight: 700; color: var(--result); line-height: 1.25; }
+  .big small { font-size: 0.95rem; font-weight: 600; }
+  .detail { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+  .detail b { color: var(--text); }
+  .stats { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 10px; }
+  .stats td { padding: 4px 2px; border-bottom: 1px solid var(--result-line); }
+  .stats td:last-child { text-align: right; font-weight: 600; }
+
+  .chart { width: 100%; height: auto; display: block; }
+  .chart text { font-size: 13px; fill: var(--muted); font-family: inherit; }
+  .chart .grid { stroke: var(--line); stroke-width: 1; }
+  .chart .ref { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 4; opacity: .7; }
+  .chart .fit { stroke: var(--accent); stroke-width: 2; }
+  .chart .pt { fill: var(--card); stroke: var(--accent); stroke-width: 2; }
+
+  .judge { border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; border: 1px solid var(--line); background: var(--card); }
+  .judge .ttl { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .judge .src { font-size: 0.75rem; color: var(--muted); }
+  .judge .verdict { font-size: 1.15rem; font-weight: 700; margin: 4px 0 2px; }
+  .judge .why { font-size: 0.85rem; color: var(--muted); }
+  .judge.hit { background: var(--err-bg); border-color: var(--err); }
+  .judge.hit .verdict { color: var(--err); }
+  .judge.mid { background: var(--warn-bg); border-color: var(--warn); }
+  .judge.mid .verdict { color: var(--warn); }
+  .judge.no .verdict { color: var(--ok); }
+
+  .crit { list-style: none; padding: 0; margin: 0; }
+  .crit li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
+  .crit li:first-child { border-top: none; padding-top: 0; }
+  .tag { display: inline-block; min-width: 4.5em; text-align: center; padding: 1px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; margin-right: 6px; border: 1px solid var(--line); color: var(--muted); }
+  .tag.hit { background: var(--err-bg); color: var(--err); border-color: var(--err); }
+  .tag.mid { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+  .tag.no { background: var(--ok-bg); color: var(--ok); border-color: var(--result-line); }
+  .crit .why { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
+
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; margin: 0 0 12px; }
+  .warn:empty { display: none; }
+  .note { font-size: 0.8rem; color: var(--muted); }
+  .note ul { padding-left: 1.2em; margin: 6px 0; }
+  .note b { color: var(--text); font-weight: 600; }
+  #out[hidden] { display: none; }
+  @media print { body { background: #fff; } .btns, .del { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>eGFR スロープ計算</h1>
+  <p class="sub">検査日と eGFR を入力すると、年あたりの低下速度（回帰直線の傾き）を計算し、紹介基準と照らし合わせます</p>
+
+  <div class="card">
+    <div class="pts" id="pts">
+      <div class="hd"></div><div class="hd">検査日</div><div class="hd">eGFR（mL/min/1.73m²）</div><div class="hd"></div>
+    </div>
+    <div class="btns">
+      <button type="button" class="btn" id="addBtn">＋ 行を追加</button>
+      <button type="button" class="btn sub2" id="resetBtn">すべてクリア</button>
+    </div>
+    <div class="agef">
+      <label class="label" for="age">年齢 <span class="use">任意・年齢相応の目安</span></label>
+      <div class="inp"><input id="age" type="number" inputmode="numeric" min="18" max="120" step="1"><span>歳</span></div>
+    </div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div id="out" hidden>
+    <p class="warn" id="warn"></p>
+
+    <div class="result">
+      <div class="big-label">eGFR スロープ（最小二乗法）</div>
+      <div class="big"><span id="outSlope">—</span> <small>mL/min/1.73m²/年</small></div>
+      <div class="detail" id="outCi"></div>
+      <table class="stats">
+        <tr><td>測定点数</td><td id="sN"></td></tr>
+        <tr><td>観察期間</td><td id="sT"></td></tr>
+        <tr><td>初回 → 最新</td><td id="sFL"></td></tr>
+        <tr><td>2点間の単純な変化（初回と最新）</td><td id="sTwo"></td></tr>
+      </table>
+    </div>
+
+    <div class="card"><svg class="chart" id="chart" viewBox="0 0 400 240" role="img" aria-label="eGFR の推移"></svg></div>
+
+    <div class="judge" id="jMain">
+      <div class="ttl"><h2 style="margin:0">スロープ異常の判定</h2><span class="src">参考：TT先生（腎臓内科）の紹介基準</span></div>
+      <div class="verdict" id="jVerdict"></div>
+      <div class="why" id="jWhy"></div>
+    </div>
+
+    <div class="card">
+      <h2>そのほかの基準</h2>
+      <ul class="crit" id="crit"></ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>判定の基準</b>
+    <ul>
+      <li><b>スロープ異常（TT先生の私見による紹介基準）</b>：年 2〜3 mL/min/1.73m² 以上の低下が、最新 eGFR ≥60 なら 5 年以上、&lt;60 なら 0.5〜1 年以上持続。本ツールでは年 3 以上を「該当」、2〜3 を「境界」としています。尿定性で潜血・蛋白が繰り返し陽性の場合も、単独で紹介の目安とされています</li>
+      <li><b>KDIGO 2012</b>：急速進行（rapid progression）＝年 5 mL/min/1.73m² を超える持続的低下。確実な低下（certain drop）＝ GFR 区分の悪化 かつ 基準値から 25% 以上の低下</li>
+      <li><b>日本腎臓学会「かかりつけ医から腎臓専門医・専門医療機関への紹介基準」</b>：3 か月以内に 30% 以上の腎機能悪化があれば速やかに紹介</li>
+      <li><b>加齢による低下</b>：おおむね年 0.3〜1 mL/min/1.73m² 程度（日本人の健診データでは約 0.36）</li>
+      <li><b>臨床試験の代替評価項目</b>：治療群間のスロープの差が年 0.5〜1.0 あれば、腎不全リスクの低下を予測するとされています（NKF・FDA・EMA ワークショップ）</li>
+      <li><b>年齢相応の eGFR（TT先生の目安）</b>：日本人の健診データ（Clin Exp Nephrol 2021）を踏まえ、「110 − 年齢÷2」≒平均、「90 − 年齢÷2」≒同年代の下位 10%、「80 − 年齢÷2」≒下位 2%。初診で過去データがない場合、下位 10% を下回れば eGFR ≥60 でも注意して経過観察</li>
+    </ul>
+    <b>使うときの注意</b>
+    <ul>
+      <li>測定点は 3 点以上、期間は 1 年以上（できれば 2〜3 年）あると安定します。点が少ないと 1 回の測定誤差で傾きが大きく変わります</li>
+      <li>AKI・脱水・感染症の時期の値は除いてください</li>
+      <li>RAS 阻害薬・SGLT2 阻害薬の開始直後は一過性に eGFR が下がる（initial dip）ため、慢性期のスロープは開始 1〜3 か月後以降の値で評価します</li>
+      <li>筋肉量の変化（サルコペニア、るい痩、ステロイド使用など）で Cr ベースの eGFR は実際の腎機能とずれることがあります。必要に応じてシスタチン C で確認してください</li>
+      <li>入力した値は保存されません（画面を閉じると消えます）</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var DAY = 86400000, YEAR = 365.25;
+
+  // t 分布の両側 95% 点（自由度 1〜30）
+  var T95 = [12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.160, 2.145, 2.131,
+             2.120, 2.110, 2.101, 2.093, 2.086, 2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045, 2.042];
+
+  function addRow(date, egfr) {
+    var box = $("pts");
+    var no = document.createElement("div"); no.className = "no";
+    var d = document.createElement("div"); d.className = "inp";
+    d.innerHTML = '<input type="date" aria-label="検査日">';
+    var e = document.createElement("div"); e.className = "inp";
+    e.innerHTML = '<input type="number" inputmode="decimal" min="1" max="200" step="0.1" aria-label="eGFR">';
+    var del = document.createElement("button"); del.type = "button"; del.className = "del"; del.textContent = "×"; del.setAttribute("aria-label", "この行を削除");
+    if (date) d.firstChild.value = date;
+    if (egfr != null) e.firstChild.value = egfr;
+    [no, d, e, del].forEach(function (el) { box.appendChild(el); });
+    d.firstChild.addEventListener("input", calc);
+    e.firstChild.addEventListener("input", calc);
+    del.addEventListener("click", function () {
+      [no, d, e, del].forEach(function (el) { el.remove(); });
+      if (rows().length === 0) addRow();
+      renumber(); calc();
+    });
+    renumber();
+  }
+  function rows() {
+    return Array.prototype.map.call($("pts").querySelectorAll("input[type=date]"), function (di) {
+      return { d: di, e: di.parentNode.nextSibling.firstChild };
+    });
+  }
+  function renumber() {
+    var n = 1;
+    Array.prototype.forEach.call($("pts").querySelectorAll(".no"), function (el) { el.textContent = n++; });
+  }
+  function stageOf(e) {
+    return e >= 90 ? "G1" : e >= 60 ? "G2" : e >= 45 ? "G3a" : e >= 30 ? "G3b" : e >= 15 ? "G4" : "G5";
+  }
+  function f1(v) { return (Math.round(v * 10) / 10).toFixed(1); }
+  function signed(v) { return (v > 0 ? "+" : v < 0 ? "−" : "") + f1(Math.abs(v)); }
+  function fmtDate(t) { var d = new Date(t); return d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate(); }
+  function fmtYears(y) {
+    if (y < 1) return Math.round(y * 12) + " か月";
+    return f1(y) + " 年";
+  }
+
+  function calc() {
+    var pts = [], bad = false;
+    rows().forEach(function (r) {
+      var ds = r.d.value, es = r.e.value;
+      r.e.parentNode.classList.remove("bad");
+      if (!ds && es === "") return;
+      var ev = parseFloat(es);
+      var t = ds ? Date.parse(ds + "T00:00:00") : NaN;
+      if (!ds || es === "" || !isFinite(ev) || ev <= 0 || ev > 200 || !isFinite(t)) {
+        if (es !== "" && !(ev > 0 && ev <= 200)) { r.e.parentNode.classList.add("bad"); bad = true; }
+        return;
+      }
+      pts.push({ t: t, e: ev });
+    });
+    pts.sort(function (a, b) { return a.t - b.t; });
+
+    $("err").textContent = bad ? "eGFR は 1〜200 の範囲で入力してください" : "";
+    var span = pts.length ? (pts[pts.length - 1].t - pts[0].t) / DAY / YEAR : 0;
+    if (pts.length < 2 || span <= 0) {
+      $("out").hidden = true;
+      if (!bad && pts.length >= 2) $("err").textContent = "異なる日付の測定が 2 点以上必要です";
+      return;
+    }
+    $("out").hidden = false;
+
+    // 回帰：x = 初回からの年数
+    var n = pts.length, t0 = pts[0].t;
+    var xs = pts.map(function (p) { return (p.t - t0) / DAY / YEAR; });
+    var ys = pts.map(function (p) { return p.e; });
+    var mx = xs.reduce(function (a, b) { return a + b; }) / n;
+    var my = ys.reduce(function (a, b) { return a + b; }) / n;
+    var sxx = 0, sxy = 0;
+    for (var i = 0; i < n; i++) { sxx += (xs[i] - mx) * (xs[i] - mx); sxy += (xs[i] - mx) * (ys[i] - my); }
+    var slope = sxy / sxx, icpt = my - slope * mx;
+    var ci = null;
+    if (n >= 3) {
+      var ssr = 0;
+      for (i = 0; i < n; i++) { var r = ys[i] - (icpt + slope * xs[i]); ssr += r * r; }
+      var se = Math.sqrt(ssr / (n - 2) / sxx);
+      var tq = n - 2 <= 30 ? T95[n - 3] : 1.96;
+      ci = [slope - tq * se, slope + tq * se];
+    }
+    var first = pts[0], last = pts[n - 1];
+    var decline = -slope;
+
+    $("outSlope").textContent = signed(slope);
+    $("outCi").innerHTML = ci
+      ? "95%信頼区間 " + signed(ci[0]) + " 〜 " + signed(ci[1]) + (ci[0] < 0 && ci[1] > 0 ? "（0 をまたぐため、低下とも上昇とも言い切れません）" : "")
+      : "2 点のみのため信頼区間は計算できません";
+    $("sN").textContent = n + " 点";
+    $("sT").textContent = fmtYears(span) + "（" + fmtDate(first.t) + " 〜 " + fmtDate(last.t) + "）";
+    $("sFL").textContent = f1(first.e) + "（" + stageOf(first.e) + "）→ " + f1(last.e) + "（" + stageOf(last.e) + "）";
+    $("sTwo").textContent = signed((last.e - first.e) / span) + " /年、" + signed((last.e - first.e) / first.e * 100) + "%";
+
+    var warns = [];
+    if (n < 3) warns.push("測定点が 2 点のみです。3 点以上あると傾きが安定します");
+    if (span < 1) warns.push("観察期間が 1 年未満です。短期間のスロープは測定誤差や一時的な変動の影響を強く受けます");
+    $("warn").innerHTML = warns.join("<br>");
+
+    drawChart(pts, xs, slope, icpt, span);
+
+    // ---- TT先生の基準 ----
+    var hi = last.e >= 60;
+    var need = hi ? 5 : 0.5;
+    var cat = hi ? "最新 eGFR ≥60 → 5 年以上の持続が条件" : "最新 eGFR <60 → 0.5〜1 年以上の持続が条件";
+    var cls, verdict, why;
+    if (decline < 2) {
+      cls = "no"; verdict = "非該当";
+      why = "低下速度 " + f1(Math.max(decline, 0)) + " /年は年 2 未満です。" + (decline <= 1 ? "加齢による低下（年 0.3〜1 程度）の範囲内です。" : "");
+    } else if (span < need) {
+      cls = "mid"; verdict = "低下傾向あり・観察期間不足";
+      why = "年 " + f1(decline) + " の低下ですが、" + cat + "です。現在 " + fmtYears(span) + "、あと " + fmtYears(need - span) + " の経過で判断します。";
+    } else {
+      cls = decline >= 3 ? "hit" : "mid";
+      verdict = decline >= 3 ? "該当：スロープ異常（専門外来への紹介を検討）" : "境界：年 2〜3 の低下（紹介を検討）";
+      why = "年 " + f1(decline) + " の低下が " + fmtYears(span) + " 続いています（" + cat + "）。";
+      if (!hi && span < 1) why += "1 年まで追って持続を確認するとより確実です。";
+    }
+    if (ci && decline >= 2 && ci[1] > -2) why += "ただし信頼区間が広く、真の低下速度が年 2 未満の可能性もあります。";
+    $("jMain").className = "judge " + cls;
+    $("jVerdict").textContent = verdict;
+    $("jWhy").textContent = why;
+
+    // ---- そのほかの基準 ----
+    var items = [];
+    // KDIGO 急速進行
+    items.push(decline > 5
+      ? ["hit", "該当", "KDIGO 2012：急速進行（年 5 を超える低下）", "年 " + f1(decline) + " の低下" + (span < 1 || n < 3 ? "（期間・点数が少ないため、持続しているか再検で確認）" : "")]
+      : ["no", "非該当", "KDIGO 2012：急速進行（年 5 を超える低下）", "年 " + f1(Math.max(decline, 0)) + " の低下"]);
+    // KDIGO certain drop
+    var pct = (first.e - last.e) / first.e * 100;
+    var stWorse = ["G1", "G2", "G3a", "G3b", "G4", "G5"].indexOf(stageOf(last.e)) > ["G1", "G2", "G3a", "G3b", "G4", "G5"].indexOf(stageOf(first.e));
+    var drop = stWorse && pct >= 25;
+    items.push([drop ? "hit" : "no", drop ? "該当" : "非該当", "KDIGO 2012：確実な低下（区分悪化＋25%以上の低下）",
+      "初回 " + stageOf(first.e) + " → 最新 " + stageOf(last.e) + "、" + (pct >= 0 ? f1(pct) + "% 低下" : f1(-pct) + "% 上昇")]);
+    // JSN 3か月以内30%
+    var worst = null;
+    for (i = 0; i < n; i++) for (var j = i + 1; j < n; j++) {
+      if ((pts[j].t - pts[i].t) / DAY > 92) break;
+      var p = (pts[i].e - pts[j].e) / pts[i].e * 100;
+      if (!worst || p > worst.p) worst = { p: p, a: pts[i], b: pts[j] };
+    }
+    if (worst && worst.p >= 30) {
+      items.push(["hit", "該当", "日本腎臓学会 紹介基準：3 か月以内に 30% 以上の悪化", fmtDate(worst.a.t) + " " + f1(worst.a.e) + " → " + fmtDate(worst.b.t) + " " + f1(worst.b.e) + "（" + f1(worst.p) + "% 低下）。速やかな紹介の目安です。AKI の可能性も検討してください"]);
+    } else {
+      items.push([worst ? "no" : "", worst ? "非該当" : "評価不可", "日本腎臓学会 紹介基準：3 か月以内に 30% 以上の悪化",
+        worst ? "3 か月以内の 2 点間で最大 " + f1(Math.max(worst.p, 0)) + "% の低下" : "3 か月以内の間隔で測った値がありません"]);
+    }
+    // 年齢相応の目安
+    var age = parseFloat($("age").value);
+    if (age >= 18 && age <= 120) {
+      var a80 = 80 - age / 2, a90 = 90 - age / 2, a110 = 110 - age / 2;
+      var lowA = last.e < a80, lowB = last.e < a90;
+      var pos = lowA ? "同年代の下位 2% 未満" : lowB ? "同年代の下位 2〜10%" : last.e < a110 ? "同年代の平均と下位 10% の間" : "同年代の平均以上";
+      items.push([lowA ? "hit" : lowB ? "mid" : "no", lowA ? "低い" : lowB ? "やや低い" : "相応",
+        "年齢相応の eGFR（TT先生の目安）",
+        age + " 歳：平均 " + f1(a110) + "、下位10% " + f1(a90) + "、下位2% " + f1(a80) + "。最新 eGFR " + f1(last.e) + " は" + pos +
+        (lowA || lowB ? (last.e >= 60 ? "。eGFR ≥60 でも注意して経過観察" : "。注意して経過観察") : "")]);
+    }
+    $("crit").innerHTML = items.map(function (it) {
+      return '<li><span class="tag ' + it[0] + '">' + it[1] + "</span><b>" + it[2] + '</b><span class="why">' + it[3] + "</span></li>";
+    }).join("");
+  }
+
+  function drawChart(pts, xs, slope, icpt, span) {
+    var W = 400, H = 240, L = 30, R = 8, T = 12, B = 26;
+    var ys = pts.map(function (p) { return p.e; });
+    var fitEnds = [icpt, icpt + slope * span];
+    var ymax = Math.max.apply(null, ys.concat(fitEnds)), ymin = Math.min.apply(null, ys.concat(fitEnds));
+    var top = Math.ceil((ymax + 5) / 10) * 10, bot = Math.max(0, Math.floor((ymin - 5) / 10) * 10);
+    var X = function (x) { return L + (x / span) * (W - L - R); };
+    var Y = function (y) { return T + (top - y) / (top - bot) * (H - T - B); };
+    var s = "";
+    var step = top - bot > 60 ? 20 : 10;
+    for (var g = bot; g <= top; g += step) {
+      s += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(g) + '" y2="' + Y(g) + '"/>';
+      s += '<text x="' + (L - 6) + '" y="' + (Y(g) + 4) + '" text-anchor="end">' + g + "</text>";
+    }
+    [90, 60, 45, 30, 15].forEach(function (v) {
+      if (v > bot && v < top) {
+        s += '<line class="ref" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/>';
+        s += '<text x="' + (W - R - 2) + '" y="' + (Y(v) - 3) + '" text-anchor="end">' + v + "</text>";
+      }
+    });
+    // x 軸：年の区切り（期間が短ければ 3 か月ごと）
+    var t0 = pts[0].t, d0 = new Date(t0), tEnd = pts[pts.length - 1].t;
+    var monthStep = span > 6 ? 24 : span > 2 ? 12 : span > 0.75 ? 3 : 1;
+    var cur = new Date(d0.getFullYear(), Math.ceil((d0.getMonth() + (d0.getDate() > 1 ? 1 : 0)) / monthStep) * monthStep, 1);
+    var ticks = 0;
+    while (cur.getTime() <= tEnd && ticks < 12) {
+      var x = X((cur.getTime() - t0) / DAY / YEAR);
+      var lab = cur.getMonth() === 0 ? String(cur.getFullYear()) : (String(cur.getFullYear()).slice(2) + "/" + (cur.getMonth() + 1));
+      s += '<line class="grid" x1="' + x + '" x2="' + x + '" y1="' + (H - B) + '" y2="' + (H - B + 4) + '"/>';
+      s += '<text x="' + x + '" y="' + (H - B + 18) + '" text-anchor="middle">' + lab + "</text>";
+      cur = new Date(cur.getFullYear(), cur.getMonth() + monthStep, 1);
+      ticks++;
+    }
+    s += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + (H - B) + '" y2="' + (H - B) + '"/>';
+    s += '<line class="fit" x1="' + X(0) + '" x2="' + X(span) + '" y1="' + Y(fitEnds[0]) + '" y2="' + Y(fitEnds[1]) + '"/>';
+    pts.forEach(function (p, i) { s += '<circle class="pt" r="4.5" cx="' + X(xs[i]) + '" cy="' + Y(p.e) + '"/>'; });
+    $("chart").innerHTML = s;
+  }
+
+  $("addBtn").addEventListener("click", function () { addRow(); });
+  $("resetBtn").addEventListener("click", function () {
+    $("pts").querySelectorAll(".no, .pts > .inp, .del").forEach(function (el) { el.remove(); });
+    for (var k = 0; k < 4; k++) addRow();
+    $("age").value = "";
+    calc();
+  });
+  $("age").addEventListener("input", calc);
+  for (var k = 0; k < 4; k++) addRow();
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 // build.py が VERSION を書き換える。値が変わると iPhone 側で新しい版に入れ替わる
-const VERSION = 'fa5cf283519e';
+const VERSION = 'dca736089bcf';
 const CACHE = 'tools-' + VERSION;
 const SHELL = ['./', 'index.html', 'manifest.json', 'tools.json', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 

@@ -1,7 +1,12 @@
 {
-  "built": "2026-11-03 17:56",
-  "version": "fa5cf283519e",
+  "built": "2026-11-03 21:56",
+  "version": "dca736089bcf",
   "tools": [
+    {
+      "file": "egfr_slope.html",
+      "title": "eGFR スロープ計算",
+      "updated": "2026-11-03"
+    },
     {
       "file": "egfr_ccr.html",
       "title": "eGFR・個別化eGFR・CCr 計算",

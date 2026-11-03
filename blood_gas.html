@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>血液ガス 酸塩基平衡解析</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1f2933; --muted: #6b7785;
+    --line: #d9dee5; --accent: #1f6feb; --accent-weak: #e7f0fe;
+    --result: #0b5d3b; --result-bg: #e8f6ee; --result-line: #b7e1c8;
+    --warn: #9a5b00; --warn-bg: #fff6e5; --warn-line: #f0d29a;
+    --err: #b42318; --err-bg: #fdecea; --input-bg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --card: #1e232b; --text: #e6e9ee; --muted: #9aa5b1;
+      --line: #2d343e; --accent: #5b9bff; --accent-weak: #1d2a40;
+      --result: #6fd3a0; --result-bg: #15291f; --result-line: #24503a;
+      --warn: #f0b85a; --warn-bg: #2e2412; --warn-line: #5a4520;
+      --err: #ff8a80; --err-bg: #3a1c1a; --input-bg: #171b21;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    font-size: 16px; line-height: 1.6;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  h2 { font-size: 1rem; margin: 0 0 10px; }
+  .sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 8px; margin-bottom: 16px; }
+  .field { margin-bottom: 14px; }
+  .label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
+  .label .use { font-weight: normal; color: var(--muted); font-size: 0.75rem; margin-left: 4px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row .field { flex: 1 1 120px; }
+  .inp { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--input-bg); }
+  .inp:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  .inp input { flex: 1; min-width: 0; border: none; outline: none; padding: 9px 10px; font-size: 1.05rem; background: transparent; color: var(--text); text-align: right; }
+  .inp span { padding: 0 10px 0 2px; color: var(--muted); white-space: nowrap; font-size: 0.8rem; }
+  .inp.bad { border-color: var(--err); }
+  .seg { display: flex; border: 1px solid var(--accent); border-radius: 8px; overflow: hidden; }
+  .seg input { display: none; }
+  .seg label { flex: 1; text-align: center; padding: 7px 2px; cursor: pointer; color: var(--accent); border-right: 1px solid var(--accent); user-select: none; font-weight: 600; font-size: 0.9rem; }
+  .seg label:last-of-type { border-right: none; }
+  .seg input:checked + label { background: var(--accent); color: #fff; }
+  details.more { border-top: 1px dashed var(--line); margin: 4px 0 12px; padding-top: 10px; }
+  details.more summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 0.9rem; margin-bottom: 10px; }
+  .group-title { font-size: 0.8rem; color: var(--muted); font-weight: 600; margin: 4px 0 6px; }
+  .err { color: var(--err); font-size: 0.9rem; min-height: 1.2em; margin-bottom: 8px; }
+
+  .summary { background: var(--result-bg); border: 1px solid var(--result-line); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
+  .summary .big-label { font-size: 0.85rem; color: var(--result); font-weight: 600; }
+  .summary .main { font-size: 1.25rem; font-weight: 700; color: var(--result); line-height: 1.45; margin: 4px 0 6px; }
+  .dis { display: flex; align-items: baseline; gap: 8px; margin: 4px 0; }
+  .dis .name { font-weight: 700; }
+  .tag { flex: none; font-size: 0.72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--result-line); color: var(--result); background: var(--card); }
+  .tag.hidden-d { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
+  .dis .why { font-size: 0.8rem; color: var(--muted); }
+  .alert { background: var(--err-bg); color: var(--err); border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; margin: 8px 0 0; }
+
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .steps li:first-child { border-top: none; padding-top: 0; }
+  .steps .ic { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; color: #fff; margin-top: 2px; }
+  .ic.ok { background: #2f9e6b; } .ic.warn { background: #d08700; } .ic.info { background: #8a96a3; } .ic.bad { background: #d4483b; }
+  .steps .t { font-weight: 600; font-size: 0.92rem; }
+  .steps .d { font-size: 0.85rem; }
+  .steps .f { font-size: 0.75rem; color: var(--muted); }
+
+  .ddx details { border-top: 1px solid var(--line); padding: 8px 0; }
+  .ddx details:first-of-type { border-top: none; padding-top: 0; }
+  .ddx summary { cursor: pointer; font-weight: 700; font-size: 0.95rem; }
+  .ddx .hint { background: var(--accent-weak); border-radius: 8px; padding: 6px 10px; font-size: 0.85rem; margin: 8px 0 4px; }
+  .ddx ul { margin: 6px 0; padding-left: 1.2em; font-size: 0.88rem; }
+  .ddx li { margin: 2px 0; }
+  .ddx .grp { font-size: 0.8rem; font-weight: 700; color: var(--muted); margin-top: 8px; }
+  .ddx .em { background: var(--warn-bg); color: var(--warn); padding: 0 4px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
+  .placeholder { color: var(--muted); font-size: 0.9rem; padding-bottom: 10px; }
+
+  button.reset { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; color: var(--muted); font-size: 0.9rem; margin: 0 0 16px; }
+  .note { font-size: 0.8rem; color: var(--muted); }
+  .note ul { padding-left: 1.2em; margin: 6px 0; }
+  @media print { body { background: #fff; } button.reset { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>血液ガス 酸塩基平衡解析</h1>
+  <p class="sub">一次性障害・代償の妥当性・隠れた病態・鑑別診断を段階的に評価します（オフラインで動作）</p>
+
+  <div class="card">
+    <div class="group-title">血液ガス（必須）</div>
+    <div class="row">
+      <div class="field">
+        <label class="label" for="ph">pH</label>
+        <div class="inp"><input id="ph" type="number" inputmode="decimal" step="0.01"></div>
+      </div>
+      <div class="field">
+        <label class="label" for="pco2">PaCO₂</label>
+        <div class="inp"><input id="pco2" type="number" inputmode="decimal" step="0.1"><span>mmHg</span></div>
+      </div>
+      <div class="field">
+        <label class="label" for="hco3">HCO₃⁻</label>
+        <div class="inp"><input id="hco3" type="number" inputmode="decimal" step="0.1"><span>mEq/L</span></div>
+      </div>
+    </div>
+
+    <div class="group-title">電解質（AG の評価に使用）</div>
+    <div class="row">
+      <div class="field">
+        <label class="label" for="na">Na</label>
+        <div class="inp"><input id="na" type="number" inputmode="decimal" step="1"><span>mEq/L</span></div>
+      </div>
+      <div class="field">
+        <label class="label" for="cl">Cl</label>
+        <div class="inp"><input id="cl" type="number" inputmode="decimal" step="1"><span>mEq/L</span></div>
+      </div>
+      <div class="field">
+        <label class="label" for="alb">Alb <span class="use">任意</span></label>
+        <div class="inp"><input id="alb" type="number" inputmode="decimal" step="0.1"><span>g/dL</span></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="label">呼吸性障害の経過 <span class="use">代償の予測式を選ぶ</span></span>
+      <div class="seg">
+        <input type="radio" name="course" id="cU" value="u" checked><label for="cU">不明</label>
+        <input type="radio" name="course" id="cA" value="a"><label for="cA">急性</label>
+        <input type="radio" name="course" id="cC" value="c"><label for="cC">慢性</label>
+      </div>
+    </div>
+
+    <details class="more" id="moreBox">
+      <summary>追加項目（任意）：浸透圧ギャップ・尿検査</summary>
+      <div class="group-title">浸透圧ギャップ（AG 開大時の中毒検索）</div>
+      <div class="row">
+        <div class="field">
+          <label class="label" for="osm">血漿浸透圧</label>
+          <div class="inp"><input id="osm" type="number" inputmode="decimal" step="1"><span>mOsm/kg</span></div>
+        </div>
+        <div class="field">
+          <label class="label" for="glu">血糖</label>
+          <div class="inp"><input id="glu" type="number" inputmode="decimal" step="1"><span>mg/dL</span></div>
+        </div>
+        <div class="field">
+          <label class="label" for="bun">BUN</label>
+          <div class="inp"><input id="bun" type="number" inputmode="decimal" step="0.1"><span>mg/dL</span></div>
+        </div>
+      </div>
+      <div class="group-title">随時尿（尿 AG：AG 正常アシドーシス ／ 尿 Cl：代謝性アルカローシス）</div>
+      <div class="row">
+        <div class="field">
+          <label class="label" for="una">尿 Na</label>
+          <div class="inp"><input id="una" type="number" inputmode="decimal" step="1"><span>mEq/L</span></div>
+        </div>
+        <div class="field">
+          <label class="label" for="uk">尿 K</label>
+          <div class="inp"><input id="uk" type="number" inputmode="decimal" step="1"><span>mEq/L</span></div>
+        </div>
+        <div class="field">
+          <label class="label" for="ucl">尿 Cl</label>
+          <div class="inp"><input id="ucl" type="number" inputmode="decimal" step="1"><span>mEq/L</span></div>
+        </div>
+      </div>
+    </details>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="summary">
+    <div class="big-label">判定</div>
+    <div id="summary"><div class="placeholder">pH・PaCO₂・HCO₃⁻ を入力すると判定します</div></div>
+  </div>
+
+  <div class="card" id="stepsCard" hidden>
+    <h2>段階的評価</h2>
+    <ol class="steps" id="steps"></ol>
+  </div>
+
+  <div class="card ddx" id="ddxCard" hidden>
+    <h2>主な鑑別診断</h2>
+    <div id="ddx"></div>
+  </div>
+
+  <button class="reset" id="resetBtn" type="button">入力をクリア</button>
+
+  <div class="note">
+    <ul>
+      <li>基準値：pH 7.35–7.45、PaCO₂ 35–45 mmHg、HCO₃⁻ 22–26 mEq/L、AG 12 ± 2 mEq/L（AG の基準値は測定機器により異なります）。</li>
+      <li>代償の予測式：代謝性アシドーシス PaCO₂ = 1.5 × HCO₃⁻ + 8 ± 2（Winter 式）／代謝性アルカローシス PaCO₂ = 40 + 0.7 × ΔHCO₃⁻ ± 5／呼吸性アシドーシス ΔHCO₃⁻ = 0.1（急性）・0.35（慢性）× ΔPaCO₂／呼吸性アルカローシス ΔHCO₃⁻ = 0.2（急性）・0.4（慢性）× ΔPaCO₂（いずれも ± 2）。</li>
+      <li>補正 AG = AG + 2.5 ×（4.0 − Alb）。補正 HCO₃⁻ = HCO₃⁻ + ΔAG（ΔAG = 補正 AG − 12）。浸透圧ギャップ = 実測 −（2 × Na + 血糖/18 + BUN/2.8）。尿 AG = 尿 Na + 尿 K − 尿 Cl。</li>
+      <li>計算 pH = 6.1 + log₁₀（HCO₃⁻ ÷（0.03 × PaCO₂））。実測 pH と 0.04 以上ずれる場合は入力値や検体を確認してください。</li>
+      <li>判定は予測式に基づく機械的な目安です。病歴・身体所見・経時変化とあわせて解釈してください。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var AG_REF = 12;
+  var limits = {
+    ph: [6.5, 8.0, "pH"], pco2: [5, 200, "PaCO₂"], hco3: [1, 70, "HCO₃⁻"],
+    na: [90, 200, "Na"], cl: [50, 160, "Cl"], alb: [0.5, 7, "Alb"],
+    osm: [150, 500, "血漿浸透圧"], glu: [5, 3000, "血糖"], bun: [1, 300, "BUN"],
+    una: [0, 400, "尿 Na"], uk: [0, 400, "尿 K"], ucl: [0, 500, "尿 Cl"]
+  };
+  var ids = Object.keys(limits);
+
+  var NAMES = {
+    metAcid: "代謝性アシドーシス",
+    agma: "AG 開大性代謝性アシドーシス",
+    nagma: "AG 正常（高 Cl 性）代謝性アシドーシス",
+    metAlk: "代謝性アルカローシス",
+    respAcid: "呼吸性アシドーシス",
+    respAlk: "呼吸性アルカローシス"
+  };
+
+  function f1(x) { return (Math.round(x * 10) / 10).toFixed(1); }
+  function f2(x) { return x.toFixed(2); }
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+
+  function read() {
+    var v = {}, errs = [];
+    ids.forEach(function (id) {
+      var s = $(id).value.trim(), x = s === "" ? null : Number(s), lim = limits[id];
+      var bad = x !== null && (isNaN(x) || x < lim[0] || x > lim[1]);
+      $(id).parentNode.classList.toggle("bad", bad);
+      if (bad) errs.push(lim[2] + " は " + lim[0] + "〜" + lim[1] + " で入力してください");
+      v[id] = bad ? null : x;
+    });
+    $("err").textContent = errs.join(" / ");
+    v.course = document.querySelector('input[name="course"]:checked').value;
+    return v;
+  }
+
+  function analyze(v) {
+    var steps = [], dis = {}, order = [], alerts = [];
+    var info = { og: null, uag: null, ucl: null, agEvaluated: false };
+    function step(status, title, detail, formula) { steps.push({ s: status, t: title, d: detail, f: formula || "" }); }
+    function add(key, role, why) {
+      if (dis[key]) { if (why) dis[key].why.push(why); return; }
+      dis[key] = { key: key, role: role, why: why ? [why] : [] };
+      order.push(key);
+    }
+    function has(key) { return !!dis[key]; }
+    function rename(from, to) {
+      dis[to] = dis[from]; dis[to].key = to; delete dis[from];
+      order[order.indexOf(from)] = to;
+    }
+
+    var ph = v.ph, c = v.pco2, h = v.hco3;
+
+    // 1. 整合性
+    var calcPh = 6.1 + Math.log10(h / (0.03 * c));
+    var dph = ph - calcPh;
+    if (Math.abs(dph) >= 0.04) {
+      alerts.push("入力値の整合性に問題があります（計算 pH " + f2(calcPh) + "）。判定の前に値を確認してください");
+      step("warn", "① データの整合性", "計算 pH " + f2(calcPh) + " と実測 pH " + f2(ph) + " の差が " + f2(Math.abs(dph)) + "。転記ミス・採血条件・測定時刻のずれを確認してください。", "Henderson–Hasselbalch 式");
+    } else {
+      step("ok", "① データの整合性", "計算 pH " + f2(calcPh) + "（実測との差 " + f2(Math.abs(dph)) + "）で矛盾なし。", "Henderson–Hasselbalch 式");
+    }
+
+    // 2. pH
+    var phState = ph < 7.35 ? "アシデミア" : ph > 7.45 ? "アルカレミア" : "正常範囲";
+    step(ph < 7.35 || ph > 7.45 ? "warn" : "ok", "② pH", "pH " + f2(ph) + "：" + phState + (phState === "正常範囲" ? "（ただし PaCO₂・HCO₃⁻ が異常なら混合性障害を考える）" : ""));
+    if (ph < 7.2) alerts.push("pH < 7.20：高度のアシデミア");
+    if (ph > 7.6) alerts.push("pH > 7.60：高度のアルカレミア");
+
+    // 3. 一次性障害
+    var lowH = h < 22, highH = h > 26, highC = c > 45, lowC = c < 35;
+    var prim = [];
+    if (ph < 7.35) {
+      var met = lowH, resp = highC;
+      if (!met && !resp) { met = h < 24; resp = c > 40; }
+      if (met) prim.push("metAcid");
+      if (resp) prim.push("respAcid");
+    } else if (ph > 7.45) {
+      var met2 = highH, resp2 = lowC;
+      if (!met2 && !resp2) { met2 = h > 24; resp2 = c < 40; }
+      if (met2) prim.push("metAlk");
+      if (resp2) prim.push("respAlk");
+    } else {
+      // pH 正常：7.40 のどちら側かで一次性を決め、もう一方は代償評価で拾う
+      if (highC && highH) prim.push(ph < 7.40 ? "respAcid" : "metAlk");
+      else if (lowC && lowH) prim.push(ph < 7.40 ? "metAcid" : "respAlk");
+      else {
+        if (highC) prim.push("respAcid");
+        if (lowC) prim.push("respAlk");
+        if (lowH) prim.push("metAcid");
+        if (highH) prim.push("metAlk");
+      }
+    }
+    prim.forEach(function (k) { add(k, "一次性"); });
+
+    var lab = "PaCO₂ " + f1(c) + " mmHg、HCO₃⁻ " + f1(h) + " mEq/L";
+    if (prim.length === 0) {
+      step("ok", "③ 一次性障害", lab + "：いずれも基準範囲内。");
+    } else if (prim.length === 1) {
+      step("warn", "③ 一次性障害", lab + " → " + NAMES[prim[0]]);
+    } else {
+      step("bad", "③ 一次性障害", lab + " → " + prim.map(function (k) { return NAMES[k]; }).join(" ＋ ") + "。両者が同じ方向に pH を動かしており、混合性障害です。");
+    }
+
+    // 4. 代償
+    if (prim.length === 1) {
+      var p = prim[0], lo, hi, exp, txt, unit;
+      if (p === "metAcid") {
+        exp = 1.5 * h + 8; lo = exp - 2; hi = exp + 2;
+        txt = "予測 PaCO₂ " + f1(lo) + "〜" + f1(hi) + " mmHg（実測 " + f1(c) + "）";
+        if (c > hi) { add("respAcid", "合併", "呼吸性代償が不十分"); step("bad", "④ 代償の評価", txt + " → 予測より高く、呼吸性アシドーシスの合併。", "Winter 式：1.5 × HCO₃⁻ + 8 ± 2"); }
+        else if (c < lo) { add("respAlk", "合併", "PaCO₂ が予測より低い"); step("bad", "④ 代償の評価", txt + " → 予測より低く、呼吸性アルカローシスの合併。", "Winter 式：1.5 × HCO₃⁻ + 8 ± 2"); }
+        else step("ok", "④ 代償の評価", txt + " → 代償は予測範囲内。", "Winter 式：1.5 × HCO₃⁻ + 8 ± 2");
+      } else if (p === "metAlk") {
+        exp = 40 + 0.7 * (h - 24); lo = exp - 5; hi = exp + 5;
+        txt = "予測 PaCO₂ " + f1(lo) + "〜" + f1(hi) + " mmHg（実測 " + f1(c) + "）";
+        if (c > hi) { add("respAcid", "合併", "PaCO₂ が予測より高い"); step("bad", "④ 代償の評価", txt + " → 予測より高く、呼吸性アシドーシスの合併。", "PaCO₂ = 40 + 0.7 × ΔHCO₃⁻ ± 5"); }
+        else if (c < lo) { add("respAlk", "合併", "PaCO₂ が予測より低い"); step("bad", "④ 代償の評価", txt + " → 予測より低く、呼吸性アルカローシスの合併。", "PaCO₂ = 40 + 0.7 × ΔHCO₃⁻ ± 5"); }
+        else step("ok", "④ 代償の評価", txt + " → 代償は予測範囲内。", "PaCO₂ = 40 + 0.7 × ΔHCO₃⁻ ± 5");
+      } else {
+        var acid = p === "respAcid";
+        var d = acid ? c - 40 : 40 - c;
+        var ka = acid ? 0.1 : 0.2, kc = acid ? 0.35 : 0.4, sign = acid ? 1 : -1;
+        var ea = 24 + sign * ka * d, ec = 24 + sign * kc * d;
+        if (v.course === "a") { lo = ea - 2; hi = ea + 2; }
+        else if (v.course === "c") { lo = ec - 2; hi = ec + 2; }
+        else { lo = Math.min(ea, ec) - 2; hi = Math.max(ea, ec) + 2; }
+        var label = { a: "急性", c: "慢性", u: "急性〜慢性" }[v.course];
+        txt = "予測 HCO₃⁻（" + label + "）" + f1(lo) + "〜" + f1(hi) + " mEq/L（実測 " + f1(h) + "）";
+        var formula = "ΔHCO₃⁻ = " + ka + "（急性）／" + kc + "（慢性）× ΔPaCO₂ ± 2";
+        if (h > hi) { add("metAlk", "合併", "HCO₃⁻ が予測より高い"); step("bad", "④ 代償の評価", txt + " → 予測より高く、代謝性アルカローシスの合併。", formula); }
+        else if (h < lo) { add("metAcid", "合併", "HCO₃⁻ が予測より低い"); step("bad", "④ 代償の評価", txt + " → 予測より低く、代謝性アシドーシスの合併。", formula); }
+        else {
+          var where = "";
+          if (v.course === "u") {
+            var inA = Math.abs(h - ea) <= 2, inC = Math.abs(h - ec) <= 2;
+            where = inA && inC ? "（急性・慢性いずれとも矛盾なし）" : inA ? "（急性として矛盾なし）" : inC ? "（慢性として矛盾なし）" : "（急性と慢性の中間：移行期または慢性の急性増悪）";
+          }
+          step("ok", "④ 代償の評価", txt + " → 代償は予測範囲内" + where + "。", formula);
+        }
+      }
+    } else if (prim.length > 1) {
+      step("info", "④ 代償の評価", "混合性障害のため予測式による代償評価は行いません。");
+    } else {
+      step("info", "④ 代償の評価", "一次性障害がないため評価不要。");
+    }
+
+    // 5. AG と Δ/Δ
+    if (v.na !== null && v.cl !== null) {
+      info.agEvaluated = true;
+      var ag = v.na - v.cl - h;
+      var agc = v.alb !== null ? ag + 2.5 * (4.0 - v.alb) : ag;
+      var agTxt = "AG " + f1(ag) + (v.alb !== null ? "、Alb 補正 AG " + f1(agc) : "") + " mEq/L";
+      var high = agc > AG_REF + 2;
+      if (v.alb === null) agTxt += "（Alb 未入力。低 Alb 血症では AG が低く出て開大を見逃しやすい）";
+      if (high) {
+        if (has("metAcid")) { rename("metAcid", "agma"); }
+        else add("agma", "合併", "pH・HCO₃⁻ だけでは見えない AG 開大");
+        step("bad", "⑤ アニオンギャップ", agTxt + " → 開大。AG 開大性代謝性アシドーシスあり。", "AG = Na − Cl − HCO₃⁻");
+
+        var dAG = agc - AG_REF, corrH = h + dAG, dH = 24 - h;
+        var ratioTxt = dH > 0 ? "、Δ比（ΔAG/ΔHCO₃⁻）" + f1(dAG / dH) : "";
+        var base = "ΔAG " + f1(dAG) + "、補正 HCO₃⁻ " + f1(corrH) + " mEq/L" + ratioTxt;
+        var respNote = (has("respAcid") ? "（慢性呼吸性アシドーシスの代償で HCO₃⁻ が上がっている分は差し引いて解釈）" : "");
+        if (corrH > 26) {
+          add("metAlk", "合併", "補正 HCO₃⁻ > 26");
+          step("bad", "⑥ 補正 HCO₃⁻（Δ/Δ）", base + " → 26 超。代謝性アルカローシスの合併" + respNote + "。", "補正 HCO₃⁻ = HCO₃⁻ + ΔAG（基準 22〜26）");
+        } else if (corrH < 22) {
+          add("nagma", "合併", "補正 HCO₃⁻ < 22");
+          step("bad", "⑥ 補正 HCO₃⁻（Δ/Δ）", base + " → 22 未満。AG 正常代謝性アシドーシスの合併。", "補正 HCO₃⁻ = HCO₃⁻ + ΔAG（基準 22〜26）");
+        } else {
+          step("ok", "⑥ 補正 HCO₃⁻（Δ/Δ）", base + " → 基準範囲内。AG 開大性アシドーシス単独で説明可能。", "補正 HCO₃⁻ = HCO₃⁻ + ΔAG（基準 22〜26）");
+        }
+      } else {
+        if (has("metAcid")) {
+          rename("metAcid", "nagma");
+          step("warn", "⑤ アニオンギャップ", agTxt + " → 正常。AG 正常（高 Cl 性）代謝性アシドーシス。", "AG = Na − Cl − HCO₃⁻");
+        } else {
+          step("ok", "⑤ アニオンギャップ", agTxt + " → 正常。", "AG = Na − Cl − HCO₃⁻");
+        }
+        step("info", "⑥ 補正 HCO₃⁻（Δ/Δ）", "AG 開大がないため評価不要。");
+      }
+    } else {
+      step("info", "⑤ アニオンギャップ", "Na・Cl を入力すると AG と隠れた代謝性障害（Δ/Δ）を評価します。");
+    }
+
+    // 7. 追加検査
+    if (v.osm !== null && v.glu !== null && v.bun !== null && v.na !== null) {
+      var calcOsm = 2 * v.na + v.glu / 18 + v.bun / 2.8;
+      info.og = v.osm - calcOsm;
+      step(info.og > 10 ? "bad" : "ok", "⑦ 浸透圧ギャップ",
+        "計算浸透圧 " + f1(calcOsm) + "、ギャップ " + f1(info.og) + " mOsm/kg → " + (info.og > 10 ? "開大（> 10）。メタノール・エチレングリコールなどの中毒を考える（ケトアシドーシス・乳酸アシドーシスでも軽度開大しうる）。" : "正常。"),
+        "実測 −（2Na + 血糖/18 + BUN/2.8）");
+    }
+    if (v.una !== null && v.uk !== null && v.ucl !== null && (has("nagma") || has("metAcid"))) {
+      info.uag = v.una + v.uk - v.ucl;
+      step("info", "⑦ 尿アニオンギャップ",
+        "尿 AG " + f1(info.uag) + " → " + (info.uag < 0 ? "負：尿中 NH₄⁺ 排泄は保たれている → 腎外性（下痢など消化管からの HCO₃⁻ 喪失）を示唆。" : "正：尿中 NH₄⁺ 排泄低下 → 腎性（尿細管性アシドーシス 1 型・4 型、CKD）を示唆。"),
+        "尿 Na + 尿 K − 尿 Cl");
+    }
+    if (v.ucl !== null && has("metAlk")) {
+      info.ucl = v.ucl;
+      step("info", "⑦ 尿 Cl",
+        "尿 Cl " + f1(v.ucl) + " mEq/L → " + (v.ucl < 20 ? "< 20：Cl 反応性（細胞外液量減少型）。" : "≥ 20：Cl 抵抗性（血圧と K で鑑別）。"));
+    }
+
+    return { steps: steps, dis: order.map(function (k) { return dis[k]; }), alerts: alerts, info: info };
+  }
+
+  // ---- 鑑別診断 ----
+  function ddxHtml(key, info, course) {
+    var H = "";
+    if (key === "agma") {
+      if (info.og !== null && info.og > 10) H += '<div class="hint">浸透圧ギャップ開大：<b>メタノール・エチレングリコール中毒</b>を最優先で除外</div>';
+      H += '<div class="grp">GOLD MARK</div><ul>' +
+        "<li><b>乳酸アシドーシス</b>：ショック・敗血症・組織低灌流、痙攣後、ビグアナイド（メトホルミン）、肝不全、ビタミン B1 欠乏</li>" +
+        "<li><b>ケトアシドーシス</b>：糖尿病性（<span class=\"em\">SGLT2 阻害薬による正常血糖 DKA</span> に注意）、アルコール性、飢餓</li>" +
+        "<li><b>腎不全</b>（尿毒症）</li>" +
+        "<li><b>サリチル酸中毒</b>（初期は呼吸性アルカローシスを合併）</li>" +
+        "<li><b>メタノール・エチレングリコール・プロピレングリコール</b>（浸透圧ギャップ開大）</li>" +
+        "<li><b>5-オキソプロリン</b>（アセトアミノフェン長期使用、低栄養・女性・腎障害）</li>" +
+        "<li><b>D-乳酸</b>（短腸症候群・空腸回腸バイパス後）</li></ul>" +
+        '<div class="grp">次の検査</div><ul><li>乳酸、血糖・ケトン体（β-ヒドロキシ酪酸）、BUN/Cr、血漿浸透圧（浸透圧ギャップ）、薬物歴</li></ul>';
+    } else if (key === "nagma" || key === "metAcid") {
+      if (key === "metAcid") H += '<div class="hint">Na・Cl を入力すると AG 開大性か正常かを判別できます</div>';
+      if (info.uag !== null) H += '<div class="hint">尿 AG ' + (info.uag < 0 ? "負 → <b>消化管性（下痢など）</b>が考えやすい" : "正 → <b>腎性（RTA・CKD）</b>が考えやすい") + "</div>";
+      H += '<div class="grp">消化管からの HCO₃⁻ 喪失（尿 AG 負）</div><ul>' +
+        "<li>下痢、腸瘻・膵液瘻・胆汁ドレナージ、尿管 S 状結腸吻合</li></ul>" +
+        '<div class="grp">腎性（尿 AG 正）</div><ul>' +
+        "<li><b>遠位（1 型）RTA</b>：<span class=\"em\">シェーグレン症候群</span>・SLE・関節リウマチなど自己免疫疾患、高 Ca 尿症、アムホテリシン B、イホスファミド、リチウム（低 K を伴う）</li>" +
+        "<li><b>近位（2 型）RTA</b>：多発性骨髄腫（軽鎖）、ファンコニ症候群、テノホビル、イホスファミド、アセタゾラミド・トピラマート</li>" +
+        "<li><b>4 型 RTA</b>（高 K を伴う）：低レニン性低アルドステロン症（糖尿病性腎症）、ACE 阻害薬・ARB・スピロノラクトン、<span class=\"em\">ST 合剤（トリメトプリム）</span>、カルシニューリン阻害薬、ヘパリン、副腎不全</li>" +
+        "<li>CKD（早期）</li></ul>" +
+        '<div class="grp">その他</div><ul><li>大量生理食塩水輸液（希釈性・高 Cl 性）、DKA 治療中の回復期</li></ul>' +
+        '<div class="grp">次の検査</div><ul><li>血清 K（低 K：1 型・2 型 RTA／下痢、高 K：4 型 RTA）、尿 pH、尿 AG、薬剤歴</li></ul>';
+    } else if (key === "metAlk") {
+      if (info.ucl !== null) H += '<div class="hint">尿 Cl ' + (info.ucl < 20 ? "< 20 → <b>Cl 反応性</b>（嘔吐・胃液吸引・利尿薬使用後）" : "≥ 20 → <b>Cl 抵抗性</b>（血圧と K で鑑別）") + "</div>";
+      H += '<div class="grp">Cl 反応性（尿 Cl &lt; 20）</div><ul>' +
+        "<li>嘔吐・胃管による胃液吸引</li><li>利尿薬（中止後）</li><li>高二酸化炭素血症の補正後（post-hypercapnia）</li><li>先天性 Cl 下痢症・絨毛腺腫</li></ul>" +
+        '<div class="grp">Cl 抵抗性・高血圧あり</div><ul>' +
+        "<li>原発性アルドステロン症、クッシング症候群、腎血管性高血圧</li>" +
+        "<li><span class=\"em\">甘草（漢方薬）による偽アルドステロン症</span>、グルココルチコイド大量投与</li><li>Liddle 症候群</li></ul>" +
+        '<div class="grp">Cl 抵抗性・高血圧なし</div><ul>' +
+        "<li>利尿薬（使用中）</li><li>Bartter 症候群・Gitelman 症候群</li><li>重度の低 K 血症・低 Mg 血症</li></ul>" +
+        '<div class="grp">アルカリ負荷</div><ul><li>重炭酸 Na・クエン酸製剤、大量輸血、ミルクアルカリ症候群（Ca 製剤＋ビタミン D）</li></ul>' +
+        '<div class="grp">次の検査</div><ul><li>尿 Cl、血清 K・Mg、血圧、レニン・アルドステロン、薬剤歴（利尿薬・漢方・ステロイド）</li></ul>';
+    } else if (key === "respAcid") {
+      H += (course === "c" ? "" : '<div class="grp">急性（気道・中枢・急性呼吸不全）</div><ul>' +
+        "<li>鎮静薬・オピオイド・麻酔薬、脳卒中・頭部外傷</li><li>上気道閉塞、重症喘息発作、COPD 増悪、肺水腫・重症肺炎の末期</li>" +
+        "<li>CO₂ 貯留患者への高濃度酸素投与</li><li>人工呼吸器の換気不足</li></ul>") +
+        '<div class="grp">' + (course === "c" ? "" : "慢性・") + '神経筋・胸郭</div><ul>' +
+        "<li>COPD、肥満低換気症候群、睡眠時無呼吸</li>" +
+        "<li><span class=\"em\">皮膚筋炎・多発性筋炎</span>など炎症性ミオパチー、重症筋無力症、ギラン・バレー症候群、ALS</li>" +
+        "<li>重度の後側弯症、横隔膜麻痺、低 K・低 P 血症による筋力低下</li></ul>" +
+        '<div class="grp">次の検査</div><ul><li>意識レベル・薬剤歴、A-aDO₂（肺胞低換気か肺疾患か）、胸部画像、呼吸筋力（%VC）</li></ul>';
+    } else if (key === "respAlk") {
+      H += '<div class="grp">低酸素血症による過換気</div><ul>' +
+        "<li>肺炎、肺塞栓症、<span class=\"em\">間質性肺炎</span>、肺水腫、高地</li></ul>" +
+        '<div class="grp">呼吸中枢の刺激</div><ul>' +
+        "<li>敗血症（初期）、発熱、疼痛、不安・過換気症候群</li><li>サリチル酸中毒（初期）、肝不全・肝硬変、妊娠、甲状腺機能亢進症</li><li>中枢神経疾患（脳炎・脳卒中）</li></ul>" +
+        '<div class="grp">医原性</div><ul><li>人工呼吸器の過換気</li></ul>' +
+        '<div class="grp">次の検査</div><ul><li>PaO₂・A-aDO₂、体温・感染徴候、D ダイマー・造影 CT（肺塞栓疑い）、AG（サリチル酸・敗血症の乳酸）</li></ul>';
+    }
+    return H;
+  }
+
+  function render() {
+    var v = read();
+    if (v.ph === null || v.pco2 === null || v.hco3 === null) {
+      $("summary").innerHTML = '<div class="placeholder">pH・PaCO₂・HCO₃⁻ を入力すると判定します</div>';
+      $("stepsCard").hidden = true; $("ddxCard").hidden = true;
+      return;
+    }
+    var r = analyze(v);
+
+    var S = "";
+    if (r.dis.length === 0) {
+      S = '<div class="main">酸塩基平衡異常なし</div>' + (r.steps.some(function (s) { return s.t.indexOf("アニオン") >= 0 && s.s === "info"; }) ? '<div class="why">Na・Cl を入力すると隠れた AG 開大性アシドーシスの有無も確認できます</div>' : "");
+    } else {
+      var prims = r.dis.filter(function (d) { return d.role === "一次性"; });
+      var hid = r.dis.filter(function (d) { return d.role !== "一次性"; });
+      S = '<div class="main">' + esc(r.dis.map(function (d) { return NAMES[d.key]; }).join(" ＋ ")) + "</div>";
+      prims.forEach(function (d) { S += '<div class="dis"><span class="tag">一次性</span><span class="name">' + esc(NAMES[d.key]) + "</span></div>"; });
+      hid.forEach(function (d) { S += '<div class="dis"><span class="tag hidden-d">隠れた病態</span><span><span class="name">' + esc(NAMES[d.key]) + '</span> <span class="why">' + esc(d.why.join("・")) + "</span></span></div>"; });
+      if (hid.length === 0 && prims.length === 1) S += '<div class="why">隠れた病態は検出されませんでした</div>';
+    }
+    r.alerts.forEach(function (a) { S += '<div class="alert">' + esc(a) + "</div>"; });
+    $("summary").innerHTML = S;
+
+    var icon = { ok: "✓", warn: "!", bad: "!", info: "–" };
+    $("steps").innerHTML = r.steps.map(function (s) {
+      return '<li><span class="ic ' + s.s + '">' + icon[s.s] + '</span><div><div class="t">' + esc(s.t) + '</div><div class="d">' + esc(s.d) + "</div>" + (s.f ? '<div class="f">' + esc(s.f) + "</div>" : "") + "</div></li>";
+    }).join("");
+    $("stepsCard").hidden = false;
+
+    if (r.dis.length) {
+      $("ddx").innerHTML = r.dis.map(function (d) {
+        return "<details open><summary>" + esc(NAMES[d.key]) + "</summary>" + ddxHtml(d.key, r.info, v.course) + "</details>";
+      }).join("");
+      $("ddxCard").hidden = false;
+    } else {
+      $("ddxCard").hidden = true;
+    }
+  }
+
+  ids.forEach(function (id) { $(id).addEventListener("input", render); });
+  ["cU", "cA", "cC"].forEach(function (id) { $(id).addEventListener("change", render); });
+  $("resetBtn").addEventListener("click", function () {
+    ids.forEach(function (id) { $(id).value = ""; });
+    $("cU").checked = true;
+    render();
+    $("ph").focus();
+  });
+  render();
+})();
+</script>
+</body>
+</html>

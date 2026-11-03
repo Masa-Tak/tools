@@ -1,6 +1,6 @@
 {
-  "built": "2026-11-03 09:25",
-  "version": "a5f66d4b601b",
+  "built": "2026-11-03 17:56",
+  "version": "fa5cf283519e",
   "tools": [
     {
       "file": "egfr_ccr.html",
@@ -21,6 +21,11 @@
       "file": "yakuzai_jikofutan.html",
       "title": "薬剤費 自己負担額計算",
       "updated": "2026-10-18"
+    },
+    {
+      "file": "blood_gas.html",
+      "title": "血液ガス 酸塩基平衡解析",
+      "updated": "2026-11-03"
     }
   ]
 }
